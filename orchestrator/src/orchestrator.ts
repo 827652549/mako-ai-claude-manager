@@ -42,6 +42,20 @@ const AGENT_CONFIGS: Record<AgentRole, AgentConfig> = {
   report_editor:   { role: "report_editor",   mdFile: ".claude/agents/report-editor.md",   tools: ["Read"],                                               maxTurns: 3 },
 };
 
+// ── Agent 角色标签（方案 A：评论格式标记）────────────────────
+const AGENT_TAGS: Record<AgentRole | "orchestrator", string> = {
+  prd_agent:       "📋 PRD Agent",
+  ux_agent:        "🎨 UX Agent",
+  ui_agent:        "🖌️ UI Agent",
+  repo_architect:  "🏗️ 架构 Agent",
+  repo_worker:     "💻 执行 Agent",
+  test_agent:      "🧪 测试 Agent",
+  web_researcher:  "🔍 搜索专家",
+  report_writer:   "📝 报告撰写",
+  report_editor:   "✏️ 报告审核",
+  orchestrator:    "🤖 Orchestrator",
+};
+
 // ── 主任务状态 → Linear WorkflowState ID 映射 ──────────────
 // 启动时从 Linear 拉取，缓存在内存中
 let stateIdCache: Map<string, string> | null = null;
@@ -113,13 +127,13 @@ export class Orchestrator {
   async runResearchPhase(branch: BranchType, background: string): Promise<void> {
     if (branch === "requirement") {
       const prd = await this.callAgent("prd_agent", `需求背景：\n${background}`);
-      await this.postLinearComment(`## PRD\n\n${prd.output}`);
+      await this.postLinearComment(`## PRD\n\n${prd.output}`, "prd_agent");
 
       const ux = await this.callAgent("ux_agent", `PRD：\n${prd.output}`);
-      await this.postLinearComment(`## UX 流程\n\n${ux.output}`);
+      await this.postLinearComment(`## UX 流程\n\n${ux.output}`, "ux_agent");
 
       const ui = await this.callAgent("ui_agent", `UX 流程：\n${ux.output}`);
-      await this.postLinearComment(`## UI 设计稿\n\n${ui.output}`);
+      await this.postLinearComment(`## UI 设计稿\n\n${ui.output}`, "ui_agent");
 
       const arch = await this.callAgent("repo_architect", [
         `PRD：\n${prd.output}`,
@@ -135,7 +149,7 @@ export class Orchestrator {
         `仓库路径：${this.repoPath}`,
         `intent=trd`,
       ].join("\n\n"));
-      await this.postLinearComment(`## TRD\n\n${arch.output}`);
+      await this.postLinearComment(`## TRD\n\n${arch.output}`, "repo_architect");
       await this.createSubTasksFromBreakdown(arch.output);
     }
 
@@ -213,12 +227,16 @@ export class Orchestrator {
     await linear.updateIssueStatus(this.linearIssueId, stateId);
 
     if (comment) {
-      await this.postLinearComment(`[状态变更] → ${stateName}\n\n${comment}`);
+      await this.postLinearComment(`[状态变更] → ${stateName}\n\n${comment}`, "orchestrator");
     }
   }
 
-  private async postLinearComment(content: string): Promise<void> {
-    await linear.addComment(this.linearIssueId, content);
+  private async postLinearComment(
+    content: string,
+    role: AgentRole | "orchestrator" = "orchestrator"
+  ): Promise<void> {
+    const tag = AGENT_TAGS[role] ?? AGENT_TAGS.orchestrator;
+    await linear.addComment(this.linearIssueId, `**${tag}**\n\n${content}`);
   }
 
   private async createSubTasksFromBreakdown(breakdownJson: string): Promise<void> {
@@ -300,18 +318,20 @@ export class Orchestrator {
   }
 
   private async handleSubTaskFailure(task: LinearTask, result: AgentResult): Promise<void> {
+    const tag = AGENT_TAGS.repo_worker;
     await linear.addComment(
       task.id,
-      `**执行失败**\n\n${result.error ?? "未知错误"}\n\n\`\`\`\n${result.output.slice(0, 500)}\n\`\`\``
+      `**${tag}**\n\n**执行失败**\n\n${result.error ?? "未知错误"}\n\n\`\`\`\n${result.output.slice(0, 500)}\n\`\`\``
     );
     // 任务回退到 Todo（Orchestrator 决策：重试 / 拆细 / 升级 Human）
     console.log(`[Orchestrator] 子任务失败: ${task.title}, 需要决策: 重试/拆细/升级Human`);
   }
 
   private async markSubTaskDone(task: LinearTask, result: AgentResult): Promise<void> {
+    const tag = AGENT_TAGS.repo_worker;
     await linear.addComment(
       task.id,
-      `**执行完成**\n\n${result.output.slice(0, 500)}`
+      `**${tag}**\n\n**执行完成**\n\n${result.output.slice(0, 500)}`
     );
     // TODO: 置子任务为 Done（需要 Linear state ID）
   }
@@ -332,9 +352,9 @@ export class Orchestrator {
     const latest = deployments[0];
     if (latest.readyState !== "READY") {
       const ready = await vercel.waitForDeployment(latest.id);
-      await this.postLinearComment(`**Preview URL**: https://${ready.url}`);
+      await this.postLinearComment(`**Preview URL**: https://${ready.url}`, "orchestrator");
     } else {
-      await this.postLinearComment(`**Preview URL**: https://${latest.url}`);
+      await this.postLinearComment(`**Preview URL**: https://${latest.url}`, "orchestrator");
     }
   }
 
@@ -383,7 +403,8 @@ export class Orchestrator {
 
     const production = await vercel.promoteDeployment(readyDeployment.id);
     await this.postLinearComment(
-      `**生产部署完成**\n\nURL: https://${production.url}\nDeployment ID: ${production.id}`
+      `**生产部署完成**\n\nURL: https://${production.url}\nDeployment ID: ${production.id}`,
+      "orchestrator"
     );
   }
 
