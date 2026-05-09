@@ -1,6 +1,6 @@
 # mako-ai-claude-manager
 
-多项目并行的全链路 Agent 工作流系统。基于 Claude Code Cowork 模式，用 Linear 做状态总线、Vercel 做部署平台，支持最多 5 个项目同时运行。
+多项目并行的全链路 Agent 工作流系统。基于 Claude Code 原生 Agent + Skill 能力，用 Linear 做状态总线、Vercel 做部署平台，支持最多 5 个项目同时运行。
 
 ## 架构
 
@@ -14,25 +14,31 @@
         ▼                ▼                ▼
   ┌──────────┐    ┌──────────┐    ┌──────────┐
   │ 项目 A   │    │ 项目 B   │    │ 项目 C   │  ...最多 5 个
-  │ Orchestrator │ │ Orchestrator │ │ Orchestrator │
-  │ (TS 进程) │    │ (TS 进程) │    │ (TS 进程) │
+  │ Claude Code │ │ Claude Code │ │ Claude Code │
+  │ --agent     │ │ --agent     │ │ --agent     │
+  │ project-lead│ │ project-lead│ │ project-lead│
   └─────┬────┘    └─────┬────┘    └─────┬────┘
         │                │                │
+        │  Skill 调用    │  Agent 调用    │
         ▼                ▼                ▼
   ┌─────────────────────────────────────────────┐
   │           Linear（唯一真相源）                │
   │   主任务 8 态 / 子任务 3 态 / 产物评论       │
   └─────────────────────────────────────────────┘
         │
-        │  claude -p（headless 子进程）
+        │  Phase Skills (context: fork)
+        │  + Agent("repo-worker") 并发
         ▼
   ┌─────────────────────────────────────────────┐
-  │              Agent 集群（9 个角色）           │
+  │  project-lead  ──→  Skill (fork 隔离)       │
+  │    research-phase  ─ PRD/TRD/Task 拆分      │
+  │    test-phase      ─ 回归测试               │
+  │    release-phase   ─ 生产发布               │
+  │    report-phase    ─ 终报汇总               │
   │                                             │
-  │  PRD Agent    UX Agent     UI Agent         │
-  │  仓库架构 Agent  仓库子执行 Agent             │
-  │  测试 Agent   网络搜索专家                    │
-  │  报告撰写研究员  报告审核编辑                  │
+  │  project-lead  ──→  Agent (sub-agent)       │
+  │    repo-worker     ─ 单 Task 代码执行       │
+  │    web-researcher  ─ 网络搜索               │
   └─────────────────────────────────────────────┘
         │
         ▼
@@ -43,38 +49,59 @@
   └─────────────────────────────────────────────┘
 ```
 
+## 核心设计
+
+**Claude Code = Orchestrator**。不依赖外部脚本做状态机，Claude Code 主会话本身就是调度者：
+
+- **project-lead agent**：唯一入口，负责读 Linear 状态、决定下一步、派发任务
+- **Phase Skills**：定义各阶段的工作流和约束（`context: fork` 隔离执行）
+- **Sub-agents**：执行具体任务的子代理（repo-worker、test-agent 等）
+- **Linear MCP**：状态读写 + 产物归档
+
+状态机逻辑分散在 Skill 文件里，project-lead 只做"读状态 → 调 Skill/Agent → 写状态"的循环。
+
 ## 项目结构
 
 ```
-├── COWORK_INSTRUCTIONS.md      # 系统级 Agent 指令（状态机、角色、规则）
-├── .claude/agents/             # 9 个角色 Agent 定义（.md 文件）
-│   ├── prd-agent.md            # 产品需求文档生成
-│   ├── ux-agent.md             # 用户体验流程设计
-│   ├── ui-agent.md             # 视觉设计方案
-│   ├── repo-architect.md       # 技术方案 + Task 拆分
-│   ├── repo-worker.md          # 单 Task 代码执行
-│   ├── test-agent.md           # 回归测试
-│   ├── web-researcher.md       # 网络搜索
-│   ├── report-writer.md        # 报告撰写
-│   └── report-editor.md        # 报告审核
-└── orchestrator/               # TS Orchestrator 核心代码
-    └── src/
-        ├── index.ts            # CLI 入口
-        ├── orchestrator.ts     # 状态机 + 调度器
-        ├── state-machine.ts    # 8 态状态机（纯脚本判断）
-        ├── claude-runner.ts    # claude -p headless 子进程管理
-        ├── linear-client.ts    # Linear GraphQL API 客户端
-        ├── vercel-client.ts    # Vercel REST API 客户端
-        └── types.ts            # 类型定义
+├── COWORK_INSTRUCTIONS.md              # 系统级设计文档（状态机、角色、规则）
+├── README.md
+└── .claude/
+    ├── agents/                         # Agent 定义（3 个）
+    │   ├── project-lead.md             # 唯一入口（项目组长）
+    │   ├── repo-worker.md              # 单 Task 代码执行
+    │   └── web-researcher.md           # 网络搜索
+    └── skills/                         # 阶段性工作流 Skill（5 个）
+        ├── research-phase/SKILL.md     # 调研阶段（PRD + TRD + 拆 Task）
+        ├── dev-dispatch/SKILL.md       # 开发派发（单 sub-task 执行）
+        ├── test-phase/SKILL.md         # 测试阶段
+        ├── release-phase/SKILL.md      # 发布阶段
+        └── report-phase/SKILL.md       # 终报阶段
 ```
+
+## 状态机
+
+主任务 8 态：
+
+```
+待启动 ──Human──▶ 调研中 ──Skill──▶ 待开发 ──Human──▶ 开发中
+                                             │
+                                             ▼
+                                          待测试 ──Skill──▶ 测试中
+                                             │           ▲
+                                             │           │ 有 Bug → 回开发中
+                                             ▼
+                                          待发布 ──Human──▶ 发布中
+```
+
+子任务 3 态：`Todo → In Progress → Done`
 
 ## 自动化程度
 
-### 完全自动化（Agent 自行完成）
-- PRD / TRD / 设计稿生成（PRD → UX → UI → 架构 Agent 串行）
+### 完全自动化（Agent / Skill 自行完成）
+- PRD / TRD / 设计稿生成（research-phase skill）
 - Task 拆分与子任务创建
-- 代码执行（子执行 Agent 并发 fork）
-- 测试执行（回归 + Bug 检测）
+- 代码执行（repo-worker sub-agent 并发）
+- 测试执行（test-phase skill）
 - Preview 部署触发
 
 ### Human 强校验（Agent 不能代行）
@@ -84,40 +111,22 @@
 - 回滚操作
 - PRD 非目标段修改
 
-### Orchestrator 自动但需 Human 授权
-- Production 部署（需要 Linear 评论中显式 `APPROVE_PRODUCTION_DEPLOY` 标记）
-- 跨项目范围调整
-
-## 状态机
-
-主任务 8 态：
-
-```
-待启动 ──Human──▶ 调研中 ──Orchestrator──▶ 待开发 ──Human──▶ 开发中
-                                              │
-                                              ▼
-                                           待测试 ──测试Agent──▶ 测试中
-                                              │            ▲
-                                              │            │ 有 Bug → 回开发中
-                                              ▼
-                                           待发布 ──Human──▶ 发布中
-```
-
-子任务 3 态：`Todo → In Progress → Done`
-
 ## 快速开始
 
 ```bash
-cd orchestrator
-bun install
-bun run build
+# 前置条件：已安装 Claude Code CLI，已配置 Linear MCP
 
-# 需要环境变量
-export LINEAR_API_KEY="your-linear-api-key"
-export VERCEL_TOKEN="your-vercel-token"
+# 启动单个项目
+claude --agent project-lead
 
-# 启动 Orchestrator
-npx tsx src/index.ts --issue-id=<linear-issue-id> --team-id=<team-id> --repo=<path>
+# 组长会自动：
+# 1. 从 Linear 读取当前 issue 状态
+# 2. 根据状态调用对应的 Phase Skill 或 Sub-agent
+# 3. 更新 Linear 状态
+# 4. 循环直到需要 Human 介入
+
+# 多项目并行 = 多个独立会话
+# 每个会话绑定一个 Linear issue
 ```
 
 ## 文档
