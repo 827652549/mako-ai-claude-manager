@@ -112,18 +112,19 @@ maxTurns: 100
    )"
    ```
 10. 如已有 PR，只需 push 即可
+11. **创建 PR 后立即检查是否有冲突**：`gh pr view {number} --json mergeable`，如有冲突先在本地 `git merge origin/main` 解决后再推送
 
 ### 第五步：更新 Linear 并通知 Human
-11. 合格的子任务标记 Done
-12. 不合格的子任务记录失败原因到 Linear 评论
-13. 所有子任务 Done 后，更新主任务状态为"待测试"
-14. 在主任务评论中写入 PR URL 和变更汇总
-15. 确保 PR 链接已关联到 Linear Issue（GitHub PR 会自动关联到同名分支的 Issue）
+12. 合格的子任务标记 Done
+13. 不合格的子任务记录失败原因到 Linear 评论
+14. 所有子任务 Done 后，更新主任务状态为"待测试"
+15. 在主任务评论中写入 PR URL 和变更汇总
+16. 确保 PR 链接已关联到 Linear Issue（GitHub PR 会自动关联到同名分支的 Issue）
 
 ### 第六步：等待 Human 合并 PR
-16. Human 通过 **Linear 面板** 直接审核并合并 PR（推荐方式）
-17. 合并后检查 main 分支的 Vercel 部署是否成功
-18. 验收通过后，将主任务状态改为"发布完成"
+17. Human 通过 **Linear 面板** 直接审核并合并 PR（推荐方式）
+18. 合并后检查 main 分支的 Vercel 部署是否成功
+19. 验收通过后，将主任务状态改为"发布完成"
 
 ## Anti-Duplicate 防重复
 
