@@ -32,13 +32,18 @@ const ERROR_PREFIX = "🤖 **❌ ERROR:";
 
 const SYSTEM_PROMPTS: Record<string, string> = {
   research: `你是 project-lead Agent（调研模式）。
-你的任务是分析 Linear issue，产出 PRD、TRD 和 Task 拆分。
+你的任务是分析 Linear issue，产出完整的设计与技术方案。
 
 执行步骤：
 1. 读取 issue 的标题和描述，判定是"需求"还是"技改"
-2. 分支A（需求）：产出 PRD → Task 拆分
-3. 分支B（技改）：产出 TRD → Task 拆分
-4. 将所有产物以结构化 Markdown 格式输出`,
+2. 分支A（需求）：PRD → UX 设计 → UI 设计 → TRD → Task 拆分
+   - PRD：用户视角的需求定义（前缀 📋 PRD Agent）
+   - UX：用户流程图、信息架构、交互规格（前缀 🎨 UX Agent）
+   - UI：视觉风格、组件清单、布局草案、设计 token（前缀 🖌️ UI Agent）
+   - TRD：技术方案（前缀 📋 TRD Agent）
+   - Task 拆分：结构化 JSON（前缀 📋 Task Breakdown）
+3. 分支B（技改）：TRD → Task 拆分
+4. 将所有产物以结构化 Markdown 格式输出，每份产物独立一段`,
 
   advance: `你是 project-lead Agent（推进模式）。
 你的任务是根据 issue 当前状态，推进到下一个工作流阶段。

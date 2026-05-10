@@ -1,6 +1,6 @@
 ---
 name: research-phase
-description: 需求调研阶段。从需求背景产出 PRD + TRD + Task 拆分，全部写入 Linear。
+description: 需求调研阶段。从需求背景产出 PRD → UX → UI → TRD + Task 拆分，全部写入 Linear。
 context: fork
 user-invocable: false
 allowed-tools:
@@ -12,7 +12,7 @@ allowed-tools:
 
 # Research Phase — 调研阶段
 
-你正在执行需求调研阶段。从 Linear issue 的需求背景出发，产出完整的 PRD、TRD 和 Task 拆分。
+你正在执行需求调研阶段。从 Linear issue 的需求背景出发，产出完整的设计与技术方案。
 
 ## 输入
 
@@ -28,13 +28,13 @@ allowed-tools:
 读取 Linear issue 描述，判定是**需求**还是**技改**：
 
 - **分支 A · 需求**：触发器是用户行为/业务指标问题（"用户做不到 X"、"转化率低于 Y"）
-  → 走 PRD → TRD → Task 拆分
+  → 走 PRD → UX → UI → TRD → Task 拆分
 - **分支 B · 技改**：触发器是工程指标问题（"P95 > 800ms"、"构建时间超过 10 分钟"）
   → 直接走 TRD → Task 拆分
 
 **判定不清** → 在 Linear 写评论说明需要澄清的点，不要硬猜。
 
-### 2a. 分支 A：生成 PRD
+### 2a. 分支 A — Step 1：生成 PRD
 
 按以下 4 段结构生成 PRD，写入 Linear 评论（前缀 `**📋 PRD Agent**`）：
 
@@ -52,25 +52,62 @@ allowed-tools:
 
 **禁止**：写技术方案、指定技术栈、库版本、表结构。
 
-### 2b. 分支 B：生成 TRD
+### 2b. 分支 A — Step 2：UX 设计
 
-直接产出 TRD，写入 Linear 评论（前缀 `**📋 TRD Agent**`）：
+基于 PRD，产出用户体验方案，写入 Linear 评论（前缀 `**🎨 UX Agent**`）：
+
+#### 用户流程图
+用文字描述核心用户旅程（Happy Path + 异常路径），每个节点标注触发条件、用户操作、系统响应。
+
+#### 信息架构
+列出页面/视图清单及层级关系，每个区块标注展示内容和用户操作。
+
+#### 交互规格
+对关键交互逐一描述：触发方式、系统响应、边界情况。
+
+#### UX 验收检查点
+从 UX 角度列出可测试的验收项（核心流程可完成性、错误提示、首屏信息可见性）。
+
+**禁止**：不改 PRD 主体目标、不指定技术实现、不涉及视觉样式。
+
+### 2c. 分支 A — Step 3：UI 设计
+
+基于 UX 方案，产出视觉设计规范，写入 Linear 评论（前缀 `**🖌️ UI Agent**`）：
+
+#### 视觉风格定义
+整体风格、主色调/辅助色（hex 色值）、字体层级、圆角/阴影、间距系统。
+
+#### 组件清单
+列出 UX 方案涉及的所有 UI 组件，标注类型、用途、状态变体，区分可复用 shadcn/ui 和需自定义的组件。
+
+#### 页面布局草案
+对 UX 定义的每个页面，用 ASCII 线框给出布局，标注响应式断点。
+
+#### 设计 Token
+输出可直接用于代码的 JSON 格式 design token（colors、spacing、borderRadius）。
+
+**禁止**：不改 UX 流程结构、不改 PRD 目标、不写代码实现、不指定交互逻辑。
+
+### 2d. 分支 A — Step 4：生成 TRD + Task 拆分
+
+基于 PRD + UX + UI 三份产物，产出 TRD 和 Task 拆分。TRD 写入 Linear 评论（前缀 `**📋 TRD Agent**`），Task 拆分写入另一条评论（前缀 `**📋 Task Breakdown**`）。
+
+#### TRD 结构
 
 - 主语：系统 / 工程
-- 问题语言："指标超过阈值 Y / 系统不满足约束 Z"
+- 问题语言："系统不满足约束 Z"
 - 非目标价值：显式列出不优化哪些模块
 - 验收标准：工程指标 / 兼容性测试用例（可跑、可量化）
+- 技术方案：架构概览、组件设计、安全设计、现有系统兼容
 
-### 3. Task 拆分
-
-基于 PRD 或 TRD，产出结构化的 Task 拆分：
+#### Task 拆分 JSON
 
 ```json
 {
   "tasks": [
     {
       "title": "Task 标题",
-      "description": "Task 描述",
+      "description": "Task 描述（需引用 UX 流程和 UI 规范中的具体内容）",
       "step": 1,
       "blockedBy": [],
       "acceptance": "验收标准"
@@ -83,23 +120,43 @@ allowed-tools:
 - 依据是文件影响域 / 依赖关系，不是工作量
 - 同 step 内可并发，跨 step 需串行
 - 每个 Task 必须有可机器校验的验收标准
+- Task 描述中应引用 UX 交互规格和 UI 组件清单中的具体条目
 
-将 Task 拆分写入 Linear 评论（前缀 `**📋 Task Breakdown**`）。
+### 3. 分支 B：生成 TRD + Task 拆分
+
+直接产出 TRD，写入 Linear 评论（前缀 `**📋 TRD Agent**`）：
+
+- 主语：系统 / 工程
+- 问题语言："指标超过阈值 Y / 系统不满足约束 Z"
+- 非目标价值：显式列出不优化哪些模块
+- 验收标准：工程指标 / 兼容性测试用例（可跑、可量化）
+
+然后产出 Task 拆分 JSON（同 2d 格式），写入 Linear 评论（前缀 `**📋 Task Breakdown**`）。
 
 ### 4. 用 WebSearch 做必要调研
 
-如有需要竞品分析、技术方案调研的环节，用 WebSearch 搜索后将结果融入 PRD/TRD。
+如有需要竞品分析、技术方案调研的环节，用 WebSearch 搜索后将结果融入 PRD/TRD/UX/UI。
 
 ## 产物
 
 在 Linear 评论中落库：
-1. PRD 或 TRD（一条评论）
-2. Task 拆分 JSON（一条评论）
-3. 调研摘要（如有 WebSearch 结果）
+
+**分支 A（需求）**：
+1. PRD（一条评论，前缀 `**📋 PRD Agent**`）
+2. UX 方案（一条评论，前缀 `**🎨 UX Agent**`）
+3. UI 规范（一条评论，前缀 `**🖌️ UI Agent**`）
+4. TRD（一条评论，前缀 `**📋 TRD Agent**`）
+5. Task 拆分 JSON（一条评论，前缀 `**📋 Task Breakdown**`）
+
+**分支 B（技改）**：
+1. TRD（一条评论，前缀 `**📋 TRD Agent**`）
+2. Task 拆分 JSON（一条评论，前缀 `**📋 Task Breakdown**`）
 
 ## 约束
 
 - PRD 不指定技术栈、库版本、表结构
+- UX 不改 PRD 主体目标、不指定技术实现、不涉及视觉样式
+- UI 不改 UX 流程结构、不写代码实现
 - TRD 不修改 PRD 主体目标
 - 非目标段是架构的笼头 — 顺手优化 = 越权
 - 验收标准必须可机器校验

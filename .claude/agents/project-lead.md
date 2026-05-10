@@ -81,8 +81,9 @@ maxTurns: 100
 ## Anti-Duplicate 防重复
 
 在执行任何阶段前，先检查 Linear 评论中是否已有该阶段的产物：
-- 调研阶段：检查是否已有 `**📋 PRD Agent**` 评论
-- 如已有产物，跳过该阶段，直接进入下一状态
+- 调研阶段（分支A·需求）：依次检查 `**📋 PRD Agent**` → `**🎨 UX Agent**` → `**🖌️ UI Agent**` → `**📋 TRD Agent**` → `**📋 Task Breakdown**`
+- 调研阶段（分支B·技改）：检查 `**📋 TRD Agent**` → `**📋 Task Breakdown**`
+- 如某个产物已存在，跳过该步骤，从缺失的步骤继续
 
 ## Human 校验点
 
