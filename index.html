@@ -258,6 +258,8 @@
   <span class="state human">待发布</span>
   <span class="arrow">──Human──▶</span>
   <span class="state active">发布中</span>
+  <span class="arrow">──完成──▶</span>
+  <span class="state" style="border-color:var(--green);color:var(--green)">发布完成</span>
 </div>
 
 <h3>子任务 3 态</h3>
@@ -297,7 +299,7 @@
   <div class="card-body">
     <span class="tag tag-agent">repo-worker</span> 并发执行<br><br>
     按 step 分组 → 同 step 内并发 fork → 跨 step 串行<br>
-    每个 Agent 产出: 变更摘要 + commit + 自检清单<br>
+    每个 Agent: 代码变更 → 自检 → commit → push → merge to main → 汇报 Linear<br>
     所有 Task Done → Vercel preview 部署
   </div>
 </div>

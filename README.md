@@ -55,7 +55,7 @@
 
 - **project-lead agent**：唯一入口，负责读 Linear 状态、决定下一步、派发任务
 - **Phase Skills**：定义各阶段的工作流和约束（`context: fork` 隔离执行）
-- **Sub-agents**：执行具体任务的子代理（repo-worker、test-agent 等）
+- **Sub-agents**：执行具体任务的子代理（repo-worker、web-researcher）
 - **Linear MCP**：状态读写 + 产物归档
 
 状态机逻辑分散在 Skill 文件里，project-lead 只做"读状态 → 调 Skill/Agent → 写状态"的循环。
@@ -94,6 +94,20 @@
 ```
 
 子任务 3 态：`Todo → In Progress → Done`
+
+## Linear 状态 ID（Mako2077 团队）
+
+| 状态 | ID | type |
+|------|-----|------|
+| 待启动 | `a65d4ff7-5ead-48bc-9e18-efd339a49d4e` | backlog |
+| 调研中 | `4144809b-3da6-4912-ad05-150cacfcc9aa` | unstarted |
+| 待开发 | `48f095a8-1642-498a-ac8f-3b79e50c7784` | unstarted |
+| 开发中 | `0561fd8e-4a0c-4298-aae3-487c1edceda6` | started |
+| 待测试 | `89ada667-ce8a-4464-91c5-5b20a31dddc1` | started |
+| 测试中 | `c7e45a1c-39cf-4dc7-bd1f-7174a0e60b19` | started |
+| 待发布 | `96296c92-4019-41c8-9349-5c2f1edfd761` | started |
+| 发布中 | `071c620d-35d9-41e3-aa8a-b3a3b40a3bcf` | started |
+| 发布完成 | `f8fc4c9e-e50c-4ca3-ad5b-d71a196ece43` | completed |
 
 ## 自动化程度
 
