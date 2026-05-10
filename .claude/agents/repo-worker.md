@@ -91,3 +91,12 @@ EOF
 - 自行决定下一步
 - force push
 - 直接 push 到 main / release 分支
+
+## ⛔ PR 合并铁律
+
+**任何 Agent（包括 project-lead）都不得自行合并 PR。PR 合并必须由 Human 显式操作或授权。**
+
+- repo-worker 只负责：创建分支 → 提交代码 → 创建 PR → 在 Linear 报告 PR URL
+- project-lead 只负责：检查 PR 状态、在 Linear 通知 Human 审核
+- **只有 Human** 能执行 `gh pr merge` 或在 GitHub/GitHub UI 点击合并
+- 违反此规则 = 严重事故
