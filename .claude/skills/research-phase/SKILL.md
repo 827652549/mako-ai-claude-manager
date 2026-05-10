@@ -76,13 +76,22 @@ allowed-tools:
 
 #### Figma 产出（主产物）
 
-使用 Figma MCP 工具创建设计（同一 Linear Project 共享同一个 Figma 项目）：
+使用 `use_figma` 工具通过 Figma Plugin API 创建专业级 UI 设计稿（同一 Linear Project 共享同一个 Figma 项目）。
 
-1. **页面布局图**：用 `generate_diagram` 在 FigJam 中创建页面布局线框图（Header、Sidebar、Content 等区块，标注响应式断点）
-2. **组件结构图**：用 `generate_diagram` 创建组件层级关系图（页面 → 区块 → 组件，标注类型和状态变体）
-3. **用户流程可视化**：用 `generate_diagram` 将 UX 用户流程图可视化为流程图
+**设计质量要求**：
+- 遵循 shadcn/ui 美学：极简克制、zinc 灰阶主色、1px 精致边框、4px 网格系统
+- Inter 字体族，14px 正文，完整的字号阶梯（12px-36px）
+- 统一圆角（6px/8px/12px），细腻阴影（shadow-sm）
+- Auto Layout 布局，响应式断点标注
+- 每个区块独立一次 use_figma 调用，增量构建
 
-如果 Linear Project 描述中没有 Figma 链接，先创建并写回 Project 描述。
+**构建流程**：
+1. 检查 Figma 文件现状（现有页面和组件）
+2. 创建 1440px 宽的页面框架（Auto Layout）
+3. 逐区块构建：Header → Sidebar → Content 区块
+4. 每个区块完成后验证截图
+
+如果 Linear Project 描述中没有 Figma 链接，先报错要求 Human 创建。
 
 #### Linear 评论（辅助产物，前缀 `**🖌️ UI Agent**`）
 

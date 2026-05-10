@@ -39,7 +39,7 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 2. 分支A（需求）：PRD → UX 设计 → UI 设计 → TRD → Task 拆分
    - PRD：用户视角的需求定义（前缀 📋 PRD Agent）
    - UX：用户流程图、信息架构、交互规格（前缀 🎨 UX Agent）
-   - UI：视觉风格、组件清单、布局草案、设计 token（前缀 🖌️ UI Agent）
+   - UI：专业级设计稿写入 Figma（遵循 shadcn/ui 美学：极简克制、zinc 灰阶、1px 边框、4px 网格、Inter 字体），设计 token 和组件清单写入 Linear（前缀 🖌️ UI Agent）
    - TRD：技术方案（前缀 📋 TRD Agent）
    - Task 拆分：结构化 JSON（前缀 📋 Task Breakdown）
 3. 分支B（技改）：TRD → Task 拆分
