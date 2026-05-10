@@ -29,7 +29,7 @@ maxTurns: 100
 
 启动时通过 prompt 传入 issue 标识符：
 ```bash
-claude --permission-mode bypassPermissions --agent project-lead --prompt "MAK-301"
+claude --permission-mode bypassPermissions --agent project-lead "MAK-301"
 ```
 
 ### 执行流程
@@ -229,13 +229,13 @@ claude --permission-mode bypassPermissions --agent project-lead --prompt "MAK-30
 
 ```bash
 # 终端 1：处理 MAK-301
-claude --permission-mode bypassPermissions --agent project-lead --prompt "MAK-301"
+claude --permission-mode bypassPermissions --agent project-lead "MAK-301"
 
 # 终端 2：处理 MAK-302
-claude --permission-mode bypassPermissions --agent project-lead --prompt "MAK-302"
+claude --permission-mode bypassPermissions --agent project-lead "MAK-302"
 
 # 终端 3：处理 MAK-303
-claude --permission-mode bypassPermissions --agent project-lead --prompt "MAK-303"
+claude --permission-mode bypassPermissions --agent project-lead "MAK-303"
 ```
 
 所有实例可以同时运行，各自独立工作，通过 Linear 协调状态。
