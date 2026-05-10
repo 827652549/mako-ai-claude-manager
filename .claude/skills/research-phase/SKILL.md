@@ -72,34 +72,32 @@ allowed-tools:
 
 ### 2c. 分支 A — Step 3：UI 设计
 
-基于 UX 方案，产出视觉设计。**设计稿写入 Figma，设计 token 和组件清单写入 Linear 评论。**
+基于 UX 方案，产出视觉设计规范。**UI Agent 不写任何代码**，仅输出设计指导，供开发阶段 repo-worker 参考实现。
 
-#### UI 页面代码（主产物）
+#### 线框图（主产物）
 
-产出可运行的 Next.js + Tailwind + shadcn/ui 页面，部署到 Vercel Preview。产出即设计稿。
+用 ASCII art 或 Mermaid 图绘制页面布局线框，标注每个区块的位置、尺寸比例和内容。
 
-**设计质量要求**：
+#### Figma 设计稿（推荐）
+
+如有条件，将设计稿写入 Figma 并附上 Figma 链接。无 Figma 时，线框图 + 设计规范 JSON 即可。
+
+#### Linear 评论（前缀 `**🖌️ UI Agent**`）
+
+1. **Figma / Preview URL**（如有）：指向设计稿或可交互原型
+2. **页面布局描述**：每个区块的结构、层级、内容说明（文字描述 + 线框图）
+3. **设计规范 JSON**：colors、spacing、borderRadius、typography token
+4. **组件清单**：列出使用的 shadcn/ui 组件及其 props 用法
+5. **交互行为描述**：hover/focus/active 状态、动画、过渡效果
+
+**设计质量要求**（供 repo-worker 参考）：
 - 遵循 shadcn/ui 美学：极简克制、zinc 灰阶主色、1px 精致边框、4px 网格系统
 - 默认带柔和投影营造立体感，hover 时阴影加深上浮，暗色模式投影补偿加强
 - 使用项目已有的 shadcn/ui 组件（Button、Card、Table、Badge、Input 等）
 - CSS 变量色值（支持暗色模式），不硬编码 hex
 - 响应式布局（sm/md/lg/xl 断点）
-- 模拟数据填充，不依赖 API
 
-**构建流程**：
-1. 读取 UX 方案，确定页面结构和区块划分
-2. 检查项目现有 shadcn/ui 组件（src/components/ui/）
-3. 编写 Next.js App Router 页面代码
-4. 提交到 feature 分支，等待 Vercel Preview 部署
-5. 将 Preview URL 写回 Linear 评论
-
-#### Linear 评论（辅助产物，前缀 `**🖌️ UI Agent**`）
-
-1. **Vercel Preview URL**：指向可交互的页面
-2. **设计规范 JSON**：colors、spacing、borderRadius、typography token
-3. **组件清单**：列出使用的 shadcn/ui 组件
-
-**禁止**：不改 UX 流程结构、不改 PRD 目标、不写业务逻辑、不引入新 UI 库。
+**禁止**：不写任何代码文件、不修改项目代码、不执行 git 操作、不改 UX 流程结构、不改 PRD 目标。
 
 ### 2d. 分支 A — Step 4：生成 TRD + Task 拆分
 
@@ -157,7 +155,7 @@ allowed-tools:
 **分支 A（需求）**：
 1. PRD（一条评论，前缀 `**📋 PRD Agent**`）
 2. UX 方案（一条评论，前缀 `**🎨 UX Agent**`）
-3. UI 页面代码（**Next.js + Tailwind + shadcn/ui**，部署到 Vercel Preview） + Linear 评论（前缀 `**🖌️ UI Agent**`：Preview URL + 设计规范 JSON + 组件清单）
+3. UI 设计规范（前缀 `**🖌️ UI Agent**`：线框图 + Figma/Preview URL + 设计规范 JSON + 组件清单 + 交互行为描述）
 4. TRD（一条评论，前缀 `**📋 TRD Agent**`）
 5. Task 拆分 JSON（一条评论，前缀 `**📋 Task Breakdown**`）
 
@@ -169,7 +167,7 @@ allowed-tools:
 
 - PRD 不指定技术栈、库版本、表结构
 - UX 不改 PRD 主体目标、不指定技术实现、不涉及视觉样式
-- UI 不改 UX 流程结构、不写业务逻辑实现
+- UI 不写任何代码、不改 UX 流程结构、不改 PRD 目标
 - TRD 不修改 PRD 主体目标
 - 非目标段是架构的笼头 — 顺手优化 = 越权
 - 验收标准必须可机器校验
