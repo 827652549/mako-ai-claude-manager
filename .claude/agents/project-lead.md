@@ -145,11 +145,25 @@ claude --permission-mode bypassPermissions --agent project-lead "MAK-301"
 
 #### 第六步：等待 Human 合并 PR
 15. Human 通过 **Linear 面板** 直接审核并合并 PR（推荐方式）
-16. 合并后检查 main 分支的 Vercel 部署是否成功
+16. 合并后通过 GitHub API 获取 Production 部署状态和 URL：
+    ```bash
+    # 获取最新 Production 部署
+    gh api 'repos/{owner}/{repo}/deployments?per_page=3' --jq '.[] | select(.environment=="Production") | {id, ref, created_at}' | head -5
+
+    # 获取部署状态和 URL
+    gh api repos/{owner}/{repo}/deployments/{id}/statuses --jq '.[0] | {state, target_url}'
+    ```
 17. 验收通过后，将主任务状态改为"发布完成"
+18. **更新标题追加完成时间**：获取北京时间并追加到标题末尾
+    ```bash
+    TZ=Asia/Shanghai date "+%Y-%m-%d-%H-%M"
+    # 输出示例: 2026-05-10-23-31
+    # 调用 mcp__linear__save_issue(id, title="原标题 [2026-05-10-23-31]")
+    ```
+19. 在最终评论中写入 Production URL（格式：`🔗 **Production**: {url}`）
 
 #### 第七步：清理 Worktree（必须执行）
-18. **PR 合并后删除 worktree**：
+20. **PR 合并后删除 worktree**：
     ```bash
     # 切回主仓库
     cd /Users/mako/WebstormProjects/mako-ai-claude-manager
@@ -163,7 +177,7 @@ claude --permission-mode bypassPermissions --agent project-lead "MAK-301"
     # 切换回 main 并拉取最新
     git checkout main && git pull
     ```
-19. 确保下次唤醒时处于干净的 main 分支状态
+21. 确保下次唤醒时处于干净的 main 分支状态
 
 ## Anti-Duplicate 防重复
 
@@ -198,6 +212,7 @@ claude --permission-mode bypassPermissions --agent project-lead "MAK-301"
 - 跨项目的协调只能通过 Human + Linear，不与其他 project-lead 直接连接
 - Production 部署必须有 Human 显式授权（Linear 评论中的 APPROVE 标记）
 - **每次执行完毕后，必须切换回 main 分支**（`git checkout main && git pull`），确保下次唤醒时处于干净的 main 分支状态
+- **发布完成时必须更新标题**：将主任务状态改为"发布完成"时，同步在标题末尾追加完成时间，格式为 `[YYYY-MM-DD-HH-mm]`（北京时间）。使用 `date "+%Y-%m-%d-%H-%M" -d "+8 hours"` 或 `TZ=Asia/Shanghai date "+%Y-%m-%d-%H-%M"` 获取北京时间。
 
 ## 并行执行安全
 

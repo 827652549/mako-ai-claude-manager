@@ -37,17 +37,21 @@ cd {project_root} && bun run build
 
 ### 2. 获取 Vercel 部署信息
 
-通过 GitHub API 获取最新部署状态：
+通过 GitHub API 获取 Preview 和 Production 部署状态：
 
 ```bash
-# 获取最新部署
-gh api repos/{owner}/{repo}/deployments --jq '.[0] | {id, sha, environment, created_at}'
+# 获取最近的部署（Preview + Production）
+gh api 'repos/{owner}/{repo}/deployments?per_page=5' --jq '.[] | {id, environment, ref, created_at}'
 
-# 获取部署状态和 URL
-gh api repos/{owner}/{repo}/deployments/{id}/statuses --jq '.[0] | {state, target_url}'
+# 获取 Preview 部署状态和 URL
+gh api repos/{owner}/{repo}/deployments/{preview_id}/statuses --jq '.[0] | {state, target_url}'
+
+# 获取 Production 部署状态和 URL（如已部署）
+gh api repos/{owner}/{repo}/deployments/{prod_id}/statuses --jq '.[0] | {state, target_url}'
 ```
 
-- 部署成功 → 记录 target_url
+- Preview 部署成功 → 记录 Preview URL（**必须写入最终报告**）
+- Production 部署存在 → 记录 Production URL
 - 部署失败 → 记录失败原因，标记测试失败
 - 部署中 → 等待完成（最多 3 分钟）
 
@@ -91,9 +95,14 @@ curl -sL -o /dev/null -w "%{http_code}" {url}/rules
 
 ## 摘要
 - 构建: ✅/❌
-- Vercel 部署: ✅/❌（URL: {url}）
+- Vercel Preview: ✅/❌
+- Vercel Production: ✅/❌ / ⏳未部署
 - HTTP 探针: {passCount}/{totalCount} 通过
 - 验收标准: {passCount}/{totalCount} 通过
+
+## 🔗 环境链接
+- **Preview**: {preview_url}
+- **Production**: {production_url}（如已部署）
 
 ## 构建详情
 {构建输出摘要}
@@ -119,3 +128,4 @@ curl -sL -o /dev/null -w "%{http_code}" {url}/rules
 - 不能触发任何部署
 - 不能修改主任务状态（由 project-lead 根据测试结果决策）
 - 测试结果必须写入 Linear 评论
+- **Preview URL 和 Production URL 必须写入测试报告**，不得省略。这是 Human 审核的关键信息。

@@ -8,6 +8,7 @@ allowed-tools:
   - mcp__linear__get_issue
   - mcp__linear__save_comment
   - mcp__linear__list_comments
+  - mcp__linear__save_issue
 ---
 
 # Research Phase — 调研阶段
@@ -133,6 +134,29 @@ allowed-tools:
 - 每个 Task 必须有可机器校验的验收标准
 - Task 描述中应引用 UX 交互规格和 UI 组件清单中的具体条目
 
+#### 创建 Linear 子任务（必须执行）
+
+Task 拆分 JSON 写入评论后，**必须为每个 Task 创建 Linear 子任务**：
+
+```python
+for each task in tasks:
+    mcp__linear__save_issue(
+        title=task.title,
+        description=f"{task.description}\n\n**验收标准**: {task.acceptance}",
+        parentId="{主任务 issue ID}",
+        team="{主任务 team}",
+        project="{主任务 project}",
+        state="Todo"  # 子任务默认 Todo 状态
+    )
+```
+
+创建后在 Task Breakdown 评论末尾追加子任务 ID 映射，方便 project-lead 后续追踪：
+```
+子任务 ID 映射：
+- {task1.title}: MAK-{子任务编号}
+- {task2.title}: MAK-{子任务编号}
+```
+
 ### 3. 分支 B：生成 TRD + Task 拆分
 
 直接产出 TRD，写入 Linear 评论（前缀 `**📋 TRD Agent**`）：
@@ -157,11 +181,11 @@ allowed-tools:
 2. UX 方案（一条评论，前缀 `**🎨 UX Agent**`）
 3. UI 设计规范（前缀 `**🖌️ UI Agent**`：线框图 + Figma/Preview URL + 设计规范 JSON + 组件清单 + 交互行为描述）
 4. TRD（一条评论，前缀 `**📋 TRD Agent**`）
-5. Task 拆分 JSON（一条评论，前缀 `**📋 Task Breakdown**`）
+5. Task 拆分 JSON（一条评论，前缀 `**📋 Task Breakdown**`）+ 对应的 Linear 子任务
 
 **分支 B（技改）**：
 1. TRD（一条评论，前缀 `**📋 TRD Agent**`）
-2. Task 拆分 JSON（一条评论，前缀 `**📋 Task Breakdown**`）
+2. Task 拆分 JSON（一条评论，前缀 `**📋 Task Breakdown**`）+ 对应的 Linear 子任务
 
 ## 约束
 
