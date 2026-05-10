@@ -297,19 +297,65 @@ Human 的"全链路产物可视化"通过 Linear 的评论时间线 + 主任务�
 
 ## 14. 文件版本
 
-- 版本：v0.3
-- 日期：2026-05-09
+- 版本：v0.4
+- 日期：2026-05-10
 - 维护者：mako
 - 变更原则：本文件每次修改都必须在文件头部加一段 `## Changelog`，记录变更项与原因。Agent 自身不得修改本文件。
 
+### 14.1 CHANGELOG_FOR_HUMAN 维护规范
+
+> 以下规范针对项目根目录的 `CHANGELOG_FOR_HUMAN.MD`，与本文件自身的 Changelog（记录 COWORK_INSTRUCTIONS.md 的变更）无关。
+
+#### 触发时机
+
+每次版本变更提交前（即 Orchestrator 将主任务从 `待测试` 推进到 `待发布` 之前），**必须**同步更新 `CHANGELOG_FOR_HUMAN.MD`。具体触发点：
+
+1. **开发阶段结束时**（Step 2 完成，所有子任务 Done）：Orchestrator 在汇总执行结果的同时，追加一条 changelog 记录。
+2. **发布阶段结束时**（Step 4 完成，production 部署成功）：若发布过程引入额外变更（如 hotfix、配置调整），需补充记录。
+3. **人工手动补充**：Human 可在任意时刻直接编辑文件，补充 Agent 未覆盖的变更说明。
+
+#### 责任人
+
+| 场景 | 责任人 | 说明 |
+|---|---|---|
+| 开发阶段常规变更 | **仓库子执行 Agent**（repo-worker）或 **Orchestrator** | Orchestrator 在 Step 2 汇总时统一写入，或由最后一个完成的 repo-worker 在提交中附带更新 |
+| 发布阶段补充 | **Orchestrator** | 部署完成后检查是否需要补充记录 |
+| 手动修正 / 补充 | **Human** | Human 可随时直接编辑，无需经过 Agent |
+
+#### 格式要求
+
+每条记录**严格遵循** `CHANGELOG_FOR_HUMAN.MD` 顶部「记录格式」段定义的结构：
+
+```
+### YYYY-MM-DD · <标签>
+
+**摘要**：1-3 句话描述做了什么、为什么做。
+
+**影响范围**：列出受影响的模块 / 文件 / 流程，逗号分隔。
+
+---
+```
+
+**约束**：
+- **日期**：与 git commit 日期对齐，格式 `YYYY-MM-DD`。
+- **标签**：从 `feat` / `fix` / `refactor` / `docs` / `chore` 中选，可加中文补充。
+- **摘要**：不超过 200 字，1-3 句话。
+- **影响范围**：逗号分隔的关键词（文件名、模块名、流程节点）。
+- **排序**：按日期降序，最新记录在文件顶部（`## 变更记录` 段之后）。
+- **文件大小**：整体文件不超过 50KB。
+
+---
+
 ### Changelog
 
+- **v0.4**（2026-05-10）：
+  - 新增 §14.1「CHANGELOG_FOR_HUMAN 维护规范」：明确触发时机（版本变更提交前）、责任人（Orchestrator / repo-worker / Human）、格式要求（引用 CHANGELOG_FOR_HUMAN.MD 模板）
+- **v0.3**（2026-05-09）：
+  - §13 待定项全部落定：#2 仓库全景（混合方案）、#4 报告节奏（仅阶段末尾）、#5 扩展角色（通用咨询 Agent + 领域知识包）、#6 Vercel secrets（共享 env，Agent 禁写 secret）
 - **v0.2**（2026-05-09）：
   - 全文术语统一：「项目 Agent 组长」「仓库执行 Agent」→「Orchestrator」
   - §6 工作流：Step 2 补充 `claude -p` 启动参数细节；Step 3 明确通过 `claude -p` 拉起 test-agent
   - §8 fork 规则：移除"待敲定"标记，回填为 headless 子进程实现；§8.1 约束表更新为具体强制方式
   - §11 多项目并发：5 项目 = 5 独立 Orchestrator TS 进程
   - §13 待定项：item 1 落定为 Hybrid + Headless
-- **v0.3**（2026-05-09）：
-  - §13 待定项全部落定：#2 仓库全景（混合方案）、#4 报告节奏（仅阶段末尾）、#5 扩展角色（通用咨询 Agent + 领域知识包）、#6 Vercel secrets（共享 env，Agent 禁写 secret）
 - **v0.1**（2026-05-09）：初版
