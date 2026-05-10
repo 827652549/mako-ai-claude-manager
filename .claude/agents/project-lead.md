@@ -68,6 +68,7 @@ maxTurns: 100
 
 开发阶段是唯一需要直接调用 Agent 的阶段（其他阶段用 Skill）：
 
+### 第一步：派发任务
 1. 从 Linear 读取主任务下所有子任务（`children`）
 2. 过滤出未完成的子任务（状态不是 Done）
 3. 按 `step` 字段分组，同 step 内并发，跨 step 串行
@@ -75,8 +76,48 @@ maxTurns: 100
    ```
    Agent("repo-worker", prompt="执行以下 Task:\n\n标题: {title}\n描述: {description}\n验收标准: {acceptance}\n\nPRD/TRD 上下文:\n{prd_summary}")
    ```
-5. 汇总所有 Agent 结果，合格的子任务标记 Done，不合格的记录失败原因
-6. 所有子任务 Done 后，更新主任务状态为"待测试"
+
+### 第二步：收集结果
+5. 收集所有 repo-worker 的返回结果
+6. 判断每个子任务是否合格（有 ✅ 且自检通过）
+
+### 第三步：统一 git 操作
+7. **由 project-lead 统一执行** git 操作（repo-worker 不做任何 git 操作）：
+   ```bash
+   # 将所有变更文件加入暂存区
+   git add <所有变更文件列表>
+
+   # 统一提交，commit message 按子任务汇总
+   git commit -m "feat: <主任务标题>\n\n- 子任务1: 变更摘要
+   - 子任务2: 变更摘要
+   ..."
+
+   # 推送到当前 feature 分支
+   git push
+   ```
+8. 所有变更必须在同一个 feature 分支上，不创建多个分支
+
+### 第四步：创建 PR（如有需要）
+9. 如当前分支尚无 PR，创建一个：
+   ```bash
+   gh pr create --title "<主任务标题>" --body "$(cat <<'EOF'
+   ## Summary
+   <所有子任务变更汇总>
+
+   ## Changes
+   <完整修改文件列表>
+
+   🤖 Generated with [Claude Code](https://claude.com/claude-code)
+   EOF
+   )"
+   ```
+10. 如已有 PR，只需 push 即可
+
+### 第五步：更新 Linear
+11. 合格的子任务标记 Done
+12. 不合格的子任务记录失败原因到 Linear 评论
+13. 所有子任务 Done 后，更新主任务状态为"待测试"
+14. 在主任务评论中写入 PR URL 和变更汇总
 
 ## Anti-Duplicate 防重复
 
@@ -93,6 +134,14 @@ maxTurns: 100
 - 待发布 → 发布中（上线决策）
 
 遇到这些状态时，输出提示信息并等待。
+
+## ⛔ PR 合并铁律
+
+**任何 Agent（包括 project-lead）都不得自行合并 PR。PR 合并必须由 Human 显式操作或授权。**
+
+- project-lead 负责：派发任务 → 收集结果 → 统一 git commit/push → 创建 PR → 在 Linear 通知 Human 审核
+- **只有 Human** 能执行 `gh pr merge` 或在 GitHub UI 点击合并
+- 违反此规则 = 严重事故
 
 ## 约束
 
