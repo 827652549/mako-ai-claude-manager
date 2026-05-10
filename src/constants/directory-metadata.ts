@@ -41,15 +41,6 @@ export const DIRECTORY_CATEGORIES = [
 
 export type CategoryId = (typeof DIRECTORY_CATEGORIES)[number]["id"];
 
-/** Mapping from entry name to its dedicated page path (if any) */
-export const LINKED_PAGES: Record<string, string> = {
-  "settings.json": "/settings",
-  "settings.local.json": "/settings",
-  "CLAUDE.md": "/claude-md",
-  agents: "/agents",
-  skills: "/skills",
-};
-
 export interface DirectoryEntryMeta {
   /** Original name as it appears in ~/.claude/ */
   name: string;

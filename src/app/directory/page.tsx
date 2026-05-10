@@ -110,9 +110,9 @@ function EntryRow({ entry }: { entry: DirectoryEntryMeta }) {
       </div>
 
       {/* Link */}
-      {isLinked && (
+      {isLinked && entry.linkedPage && (
         <Link
-          href={entry.linkedPage!}
+          href={entry.linkedPage}
           className="shrink-0 flex items-center gap-1 text-xs text-primary hover:underline"
         >
           查看
