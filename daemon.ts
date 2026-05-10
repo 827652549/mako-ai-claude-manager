@@ -17,14 +17,11 @@ import { spawn } from "node:child_process";
 // Config
 // ---------------------------------------------------------------------------
 
-const POLL_INTERVAL_MS = 60_000; // 60 seconds (~120 API calls/hour, well under 2500 limit)
+const POLL_INTERVAL_MS = 60_000; // 60 seconds (~120 API calls/hour)
 const CLAUDE_TIMEOUT_MS = 300_000; // 5 minutes per execution
 const MAX_TURNS = 50;
-
-// The QUEUE issue where webhook writes PENDING markers
 const QUEUE_ISSUE_ID = "MAK-300";
 
-// Marker prefixes
 const PENDING_PREFIX = "🤖 **⏳ PENDING:";
 const DONE_PREFIX = "🤖 **✅ DONE:";
 const ERROR_PREFIX = "🤖 **❌ ERROR:";
@@ -64,6 +61,30 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Rate limit handling
+// ---------------------------------------------------------------------------
+
+let rateLimitedUntil = 0; // timestamp when rate limit resets
+
+function isRateLimited(): boolean {
+  return Date.now() < rateLimitedUntil;
+}
+
+function handleRateLimitError(err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  const resetMatch = message.match(/x-ratelimit-requests-reset.*?(\d{13})/);
+  if (resetMatch) {
+    rateLimitedUntil = parseInt(resetMatch[1]!, 10);
+    const waitMinutes = Math.ceil((rateLimitedUntil - Date.now()) / 60_000);
+    console.warn(`[daemon] Rate limited. Retry in ~${waitMinutes} minutes.`);
+  } else {
+    // Default: wait 5 minutes
+    rateLimitedUntil = Date.now() + 5 * 60 * 1000;
+    console.warn(`[daemon] Rate limited. Retry in ~5 minutes.`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -74,9 +95,7 @@ function parsePendingMarker(body: string): { action: string; context: Record<str
   const jsonMatch = body.match(/```json\n([\s\S]*?)\n```/);
   let context: Record<string, string> | null = null;
   if (jsonMatch) {
-    try {
-      context = JSON.parse(jsonMatch[1]!) as Record<string, string>;
-    } catch { /* ignore */ }
+    try { context = JSON.parse(jsonMatch[1]!) as Record<string, string>; } catch { /* ignore */ }
   }
 
   return { action: match[1]!, context };
@@ -85,9 +104,7 @@ function parsePendingMarker(body: string): { action: string; context: Record<str
 function executeClaude(prompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn("claude", [
-      "-p",
-      "--output-format", "text",
-      "--max-turns", String(MAX_TURNS),
+      "-p", "--output-format", "text", "--max-turns", String(MAX_TURNS),
     ], {
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env },
@@ -125,14 +142,17 @@ function executeClaude(prompt: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Main poll loop — only polls QUEUE issue comments
+// Main poll loop
 // ---------------------------------------------------------------------------
 
 async function pollOnce(client: LinearClient): Promise<number> {
-  // Single API call: get QUEUE issue
-  const queueIssue = await client.issue(QUEUE_ISSUE_ID);
+  if (isRateLimited()) {
+    const waitMinutes = Math.ceil((rateLimitedUntil - Date.now()) / 60_000);
+    console.log(`[daemon] Still rate limited, waiting ~${waitMinutes}m...`);
+    return 0;
+  }
 
-  // Single API call: get its comments
+  const queueIssue = await client.issue(QUEUE_ISSUE_ID);
   const comments = await queueIssue.comments({ first: 20 });
 
   let processedCount = 0;
@@ -155,16 +175,11 @@ async function pollOnce(client: LinearClient): Promise<number> {
 
     const { action, context } = parsed;
     const markerId = comment.id;
-
-    // Target issue info comes from the marker context
     const targetIssueId = context?.targetIssueId;
     const targetIdentifier = context?.targetIdentifier ?? "unknown";
-    const title = context?.title ?? "unknown";
-    const description = context?.description ?? "";
-    const status = context?.status ?? "Unknown";
 
     if (!targetIssueId) {
-      console.error(`[daemon] PENDING marker missing targetIssueId, skipping`);
+      console.error(`[daemon] PENDING missing targetIssueId, skipping`);
       continue;
     }
 
@@ -179,9 +194,9 @@ async function pollOnce(client: LinearClient): Promise<number> {
     const userMessage = [
       `Issue ID: ${targetIssueId}`,
       `Issue Identifier: ${targetIdentifier}`,
-      `Title: ${title}`,
-      `Description: ${description}`,
-      `Current Status: ${status}`,
+      `Title: ${context?.title ?? "unknown"}`,
+      `Description: ${context?.description ?? ""}`,
+      `Current Status: ${context?.status ?? "Unknown"}`,
     ].join("\n");
 
     try {
@@ -189,13 +204,13 @@ async function pollOnce(client: LinearClient): Promise<number> {
       const prompt = `${systemPrompt}\n\n---\n\n${userMessage}`;
       const result = await executeClaude(prompt);
 
-      // Write DONE result comment on the TARGET issue (not the queue)
+      // Write result on TARGET issue
       await client.createComment({
         issueId: targetIssueId,
         body: `🤖 **📋 Agent Result** (${action})\n\n${result}`,
       });
 
-      // Mark PENDING as resolved on the QUEUE issue
+      // Mark resolved on QUEUE issue
       await client.createComment({
         issueId: queueIssue.id,
         body: `${DONE_PREFIX}${action}** — ${targetIdentifier} 完成`,
@@ -208,18 +223,18 @@ async function pollOnce(client: LinearClient): Promise<number> {
       const errorMessage = err instanceof Error ? err.message : String(err);
       console.error(`[daemon] ❌ action=${action} target=${targetIdentifier}: ${errorMessage}`);
 
-      // Write error on the TARGET issue
+      // Write error on TARGET issue
       await client.createComment({
         issueId: targetIssueId,
         body: `🤖 **❌ Agent Error** (${action})\n\n${errorMessage}`,
-      });
+      }).catch(() => {});
 
-      // Mark PENDING as errored on the QUEUE issue
+      // Mark error on QUEUE issue
       await client.createComment({
         issueId: queueIssue.id,
-        body: `${ERROR_PREFIX}${action}** — ${targetIdentifier} 失败: ${errorMessage.slice(0, 100)}`,
+        body: `${ERROR_PREFIX}${action}** — ${targetIdentifier} 失败`,
         parentId: markerId,
-      });
+      }).catch(() => {});
 
       processedCount++;
     }
@@ -231,7 +246,7 @@ async function pollOnce(client: LinearClient): Promise<number> {
 async function main() {
   const apiKey = process.env.LINEAR_API_KEY;
   if (!apiKey) {
-    console.error("[daemon] LINEAR_API_KEY is not set. Add it to .env or environment.");
+    console.error("[daemon] LINEAR_API_KEY is not set.");
     process.exit(1);
   }
 
@@ -243,20 +258,23 @@ async function main() {
   console.log(`[daemon] Queue issue: ${QUEUE_ISSUE_ID}`);
 
   if (runOnce) {
-    const count = await pollOnce(client);
-    console.log(`[daemon] Processed ${count} pending task(s)`);
+    try {
+      const count = await pollOnce(client);
+      console.log(`[daemon] Processed ${count} pending task(s)`);
+    } catch (err: unknown) {
+      handleRateLimitError(err);
+      console.error(`[daemon] Error: ${err instanceof Error ? err.message : String(err)}`);
+    }
     process.exit(0);
   }
 
   while (true) {
     try {
       const count = await pollOnce(client);
-      if (count > 0) {
-        console.log(`[daemon] Processed ${count} pending task(s)`);
-      }
+      if (count > 0) console.log(`[daemon] Processed ${count} pending task(s)`);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[daemon] Poll error: ${message}`);
+      handleRateLimitError(err);
+      console.error(`[daemon] Poll error: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
