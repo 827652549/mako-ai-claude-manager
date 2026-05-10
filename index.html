@@ -36,6 +36,11 @@
   .tag-skill { background: #1f3a5f; color: var(--accent); }
   .tag-agent { background: #2a1f3d; color: var(--purple); }
   .tag-human { background: #2d2006; color: var(--yellow); }
+  .tag-feat { background: #1a3a2a; color: var(--green); }
+  .tag-fix { background: #3a1a1a; color: var(--red); }
+  .tag-refactor { background: #2a2a1a; color: var(--yellow); }
+  .tag-docs { background: #1a2a3a; color: var(--accent); }
+  .tag-chore { background: #2a2a2a; color: var(--muted); }
 
   /* 架构图 */
   .arch-diagram {
@@ -319,6 +324,79 @@
     <span class="tag tag-skill">release-phase</span> context: fork<br><br>
     校验 Human 授权 → promote preview → production<br>
     无授权 = 拒绝继续 / 回滚必须 Human 手动
+  </div>
+</div>
+
+<!-- ── 近期变更 ─────────────────────────────── -->
+<h2>近期变更</h2>
+
+<div class="card">
+  <div class="card-title">
+    <span class="tag tag-refactor">refactor</span> 2026-05-10 · v0.4
+  </div>
+  <div class="card-body">
+    <p><strong>摘要</strong>：将发布流程从「CLI 直推 main」升级为「Feature 分支 + PR + Vercel Preview」模式。repo-worker 现在创建 PR 而非直接合并到 main；Vercel Git 集成自动部署 Preview 环境；发布阶段通过合并 PR 触发 Production 部署。</p>
+    <p><strong>影响范围</strong>：repo-worker.md, release-phase SKILL.md, COWORK_INSTRUCTIONS.md §6-§7</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    <span class="tag tag-docs">docs</span> 2026-05-10
+  </div>
+  <div class="card-body">
+    <p><strong>摘要</strong>：创建 CHANGELOG_FOR_HUMAN.MD，建立面向人类的变更记录模板。定义标准格式（日期、标签、摘要、影响范围），为后续版本追溯提供统一规范。</p>
+    <p><strong>影响范围</strong>：CHANGELOG_FOR_HUMAN.MD</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    <span class="tag tag-fix">fix</span> 2026-05-10
+  </div>
+  <div class="card-body">
+    <p><strong>摘要</strong>：修正 MCP Server 配置中的工具权限声明，更新 README 文档和展示页内容。确保 Claude Code 能正确识别和调用所需的 MCP 工具。</p>
+    <p><strong>影响范围</strong>：.claude/settings.json, README.md, app/</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    <span class="tag tag-refactor">refactor</span> 2026-05-10 · v0.3
+  </div>
+  <div class="card-body">
+    <p><strong>摘要</strong>：从 TypeScript Orchestrator 进程架构迁移到 Claude Code 原生 Agent + Skill 架构。移除了外部 TS 状态机进程，改为直接使用 Claude Code 的 sub-agent 能力调度各角色，简化了整体执行链路。同步落地 COWORK_INSTRUCTIONS.md v0.3：所有待定项（仓库全景、报告节奏、扩展角色、Vercel secrets）全部敲定。</p>
+    <p><strong>影响范围</strong>：.claude/agents/, .claude/skills/, COWORK_INSTRUCTIONS.md, README.md</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    <span class="tag tag-feat">feat</span> 2026-05-10 · v0.2
+  </div>
+  <div class="card-body">
+    <p><strong>摘要</strong>：为 Linear 评论添加 Agent 角色标签，使每条评论可追溯到是由哪个 Agent 角色产出。同步更新 COWORK_INSTRUCTIONS.md 至 v0.2：统一术语（"项目 Agent 组长"→"Orchestrator"），补充 claude -p 启动参数细节，回填 fork 规则为 headless 子进程实现。</p>
+    <p><strong>影响范围</strong>：Orchestrator 评论写入逻辑, COWORK_INSTRUCTIONS.md, .claude/agents/</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    <span class="tag tag-docs">docs</span> 2026-05-10
+  </div>
+  <div class="card-body">
+    <p><strong>摘要</strong>：添加 README.md，介绍项目架构和当前自动化实现程度。补充项目入口文档，方便新协作者快速理解 mako-ai-claude-manager 的定位与能力边界。</p>
+    <p><strong>影响范围</strong>：README.md</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    <span class="tag tag-chore">chore</span> 2026-05-10 · v0.1
+  </div>
+  <div class="card-body">
+    <p><strong>摘要</strong>：项目初始化。创建 Git 仓库，建立 COWORK_INSTRUCTIONS.md 多 Agent 并行工作流规范（v0.1 初版），搭建 .claude/agents/ 角色定义目录和 .claude/skills/ 技能目录骨架。</p>
+    <p><strong>影响范围</strong>：COWORK_INSTRUCTIONS.md, .claude/agents/, .claude/skills/, 项目基础结构</p>
   </div>
 </div>
 
