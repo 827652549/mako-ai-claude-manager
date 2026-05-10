@@ -164,9 +164,9 @@ PRD 与 TRD **必须**包含以下 4 段，且每段都用对应的"语言风格
    - 跨 step 串行：等当前 step 全部 Done 才起下一 step。
    - 每个子进程启动参数：`--system-prompt` = `repo-worker.md` body，`--allowedTools` = frontmatter `tools`，`--max-turns` = frontmatter `max_turns`，prompt = 注入的 4 项上下文（§8.1）。
 3. 子进程完成 → 输出结构化 JSON（含变更摘要、commit ref、自检清单）→ Orchestrator 解析后把 Task 状态置 `In Progress` 期间的中间产物落 Task 评论 → **由 Orchestrator 自身判定**该 Task 是否合格：合格则置 `Done`，不合格则回 `Todo` + 失败原因 + 决定重试 / 拆细 / 升级 Human。
-4. 所有子任务 Done 后，Orchestrator 在主任务下汇总执行结果（变更摘要、PR 链接），**通过 Vercel MCP 触发该 PR 的 preview 部署**，等待 preview 状态 `READY` 后把 preview URL 回写到主任务评论，主任务置 `待测试`。
-   - Preview 部署的可观测要求：拉取 Vercel build log，若有 `error`/`failed` 立即终止流程，主任务回 `开发中` 并附失败日志摘要。
-   - Preview URL 必须同时挂在：① 主任务评论 ② PR 描述。
+4. 所有子任务 Done 后，Orchestrator 在主任务下汇总执行结果（变更摘要、PR 链接）。Vercel 通过 Git 集成自动为每个 PR 部署 preview 环境，Orchestrator 等待 preview 部署就绪后把 **Vercel Preview URL** 回写到主任务评论，主任务置 `待测试`。
+   - Preview 部署的可观测要求：通过 `vercel ls` 检查最新 preview 部署状态，若有 `Error`/`Failed` 立即终止流程，主任务回 `开发中` 并附失败日志摘要。
+   - Preview URL 必须同时挂在：① 主任务评论 ② PR 描述（可通过 `gh pr edit` 添加）。
 
 ### Step 3 · 测试阶段
 
@@ -182,11 +182,11 @@ PRD 与 TRD **必须**包含以下 4 段，且每段都用对应的"语言风格
 
 **触发**：Human 在 `待发布` 状态决策上线节奏，把状态置 `发布中`。
 
-**执行**（Orchestrator 直接走 Vercel MCP，不调用 LLM）：
-1. **Orchestrator 校验**：Linear 主任务评论里必须存在一条 Human 显式授权（结构化标记，例如 `:rocket: APPROVE_PRODUCTION_DEPLOY <主任务 ID> <目标 vercel project>`）。无授权 = 拒绝继续。
-2. **首选路径**：调用 Vercel MCP 把已就绪的 preview deployment **promote 到 production**（`vercel promote` 等价语义），避免重新构建带来的差异。
-3. **备选路径**：若 promote 不可用（如 preview 已过期），Orchestrator 在 production project 上触发 production 分支的 deploy。
-4. 部署完成后，把 production URL + Vercel deployment ID 回写到主任务评论；状态保持 `发布中`，等 Human 验收后由 Human 关闭主任务。
+**执行**（Orchestrator 通过 release-phase skill 执行）：
+1. **Orchestrator 校验**：Linear 主任务评论里必须存在一条 Human 显式授权（结构化标记，例如 `:rocket: APPROVE_PRODUCTION_DEPLOY`）。无授权 = 拒绝继续。
+2. **校验 PR 状态**：检查所有 PR 是否处于 OPEN 状态、可合并、CI checks 全部通过。
+3. **合并 PR**：通过 `gh pr merge --merge --delete-branch` 合并 PR 到 main。Vercel Git 集成自动触发 Production 部署。
+4. 验证 Production 部署完成后，把 production URL 回写到主任务评论；状态保持 `发布中`，等 Human 验收后由 Human 关闭主任务。
 
 **禁止**：Orchestrator 自行选择灰度策略、自行切换 production 域名、自行回滚。回滚必须由 Human 通过 Vercel 控制台或在 Linear 留下显式回滚指令触发。
 
@@ -297,7 +297,7 @@ Human 的"全链路产物可视化"通过 Linear 的评论时间线 + 主任务�
 
 ## 14. 文件版本
 
-- 版本：v0.4
+- 版本：v0.5
 - 日期：2026-05-10
 - 维护者：mako
 - 变更原则：本文件每次修改都必须在文件头部加一段 `## Changelog`，记录变更项与原因。Agent 自身不得修改本文件。
@@ -348,6 +348,11 @@ Human 的"全链路产物可视化"通过 Linear 的评论时间线 + 主任务�
 
 ### Changelog
 
+- **v0.5**（2026-05-10）：
+  - §6 Step 2 子任务执行流程：repo-worker 从「直接合并到 main」改为「Feature 分支 + PR 模式」；preview 部署改为 Vercel Git 集成自动触发
+  - §6 Step 4 发布阶段：从「Vercel promote / production deploy」改为「合并 PR → Vercel 自动部署 Production」
+  - repo-worker.md agent 定义更新：新增 feature 分支创建、PR 创建流程；禁止直接 push 到 main
+  - release-phase SKILL.md 更新：校验 PR 状态 → 合并 PR → 验证 Production 部署
 - **v0.4**（2026-05-10）：
   - 新增 §14.1「CHANGELOG_FOR_HUMAN 维护规范」：明确触发时机（版本变更提交前）、责任人（Orchestrator / repo-worker / Human）、格式要求（引用 CHANGELOG_FOR_HUMAN.MD 模板）
 - **v0.3**（2026-05-09）：

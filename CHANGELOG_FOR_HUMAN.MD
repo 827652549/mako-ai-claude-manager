@@ -35,6 +35,14 @@
 
 ## 变更记录
 
+### 2026-05-10 · refactor · v0.4
+
+**摘要**：将发布流程从「CLI 直推 main」升级为「Feature 分支 + PR + Vercel Preview」模式。repo-worker 现在创建 PR 而非直接合并到 main；Vercel Git 集成自动部署 Preview 环境；发布阶段通过合并 PR 触发 Production 部署。
+
+**影响范围**：repo-worker.md, release-phase SKILL.md, COWORK_INSTRUCTIONS.md §6-§7
+
+---
+
 ### 2026-05-10 · docs
 
 **摘要**：创建 CHANGELOG_FOR_HUMAN.MD，建立面向人类的变更记录模板。定义标准格式（日期、标签、摘要、影响范围），为后续版本追溯提供统一规范。
