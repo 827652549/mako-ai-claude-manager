@@ -1,5 +1,4 @@
 {
-  "outputDirectory": ".next",
   "functions": {
     "api/webhook.ts": {
       "maxDuration": 60
