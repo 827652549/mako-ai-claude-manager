@@ -74,33 +74,31 @@ allowed-tools:
 
 基于 UX 方案，产出视觉设计。**设计稿写入 Figma，设计 token 和组件清单写入 Linear 评论。**
 
-#### Figma 产出（主产物）
+#### UI 页面代码（主产物）
 
-使用 `use_figma` 工具通过 Figma Plugin API 创建专业级 UI 设计稿（同一 Linear Project 共享同一个 Figma 项目）。
+产出可运行的 Next.js + Tailwind + shadcn/ui 页面，部署到 Vercel Preview。产出即设计稿。
 
 **设计质量要求**：
 - 遵循 shadcn/ui 美学：极简克制、zinc 灰阶主色、1px 精致边框、4px 网格系统
-- Inter 字体族，14px 正文，完整的字号阶梯（12px-36px）
-- 统一圆角（6px/8px/12px），细腻阴影（shadow-sm）
-- Auto Layout 布局，响应式断点标注
-- 每个区块独立一次 use_figma 调用，增量构建
+- 使用项目已有的 shadcn/ui 组件（Button、Card、Table、Badge、Input 等）
+- CSS 变量色值（支持暗色模式），不硬编码 hex
+- 响应式布局（sm/md/lg/xl 断点）
+- 模拟数据填充，不依赖 API
 
 **构建流程**：
-1. 检查 Figma 文件现状（现有页面和组件）
-2. 创建 1440px 宽的页面框架（Auto Layout）
-3. 逐区块构建：Header → Sidebar → Content 区块
-4. 每个区块完成后验证截图
-
-如果 Linear Project 描述中没有 Figma 链接，先报错要求 Human 创建。
+1. 读取 UX 方案，确定页面结构和区块划分
+2. 检查项目现有 shadcn/ui 组件（src/components/ui/）
+3. 编写 Next.js App Router 页面代码
+4. 提交到 feature 分支，等待 Vercel Preview 部署
+5. 将 Preview URL 写回 Linear 评论
 
 #### Linear 评论（辅助产物，前缀 `**🖌️ UI Agent**`）
 
-1. **Figma 链接**：指向设计稿
-2. **视觉风格定义**：整体风格、主色调/辅助色（hex）、字体层级、圆角/阴影、间距系统
-3. **组件清单**：列出 UX 方案涉及的所有 UI 组件，标注类型、用途、状态变体、来源（shadcn/ui 或自定义）
-4. **设计 Token**：JSON 格式（colors、spacing、borderRadius），可直接用于代码
+1. **Vercel Preview URL**：指向可交互的页面
+2. **设计规范 JSON**：colors、spacing、borderRadius、typography token
+3. **组件清单**：列出使用的 shadcn/ui 组件
 
-**禁止**：不改 UX 流程结构、不改 PRD 目标、不写代码实现、不指定交互逻辑。同一项目共享同一 Figma 项目。
+**禁止**：不改 UX 流程结构、不改 PRD 目标、不写业务逻辑、不引入新 UI 库。
 
 ### 2d. 分支 A — Step 4：生成 TRD + Task 拆分
 
@@ -158,7 +156,7 @@ allowed-tools:
 **分支 A（需求）**：
 1. PRD（一条评论，前缀 `**📋 PRD Agent**`）
 2. UX 方案（一条评论，前缀 `**🎨 UX Agent**`）
-3. UI 设计稿（**Figma**，同一 Project 共享） + Linear 评论（前缀 `**🖌️ UI Agent**`：Figma 链接 + 视觉风格 + 组件清单 + 设计 Token JSON）
+3. UI 页面代码（**Next.js + Tailwind + shadcn/ui**，部署到 Vercel Preview） + Linear 评论（前缀 `**🖌️ UI Agent**`：Preview URL + 设计规范 JSON + 组件清单）
 4. TRD（一条评论，前缀 `**📋 TRD Agent**`）
 5. Task 拆分 JSON（一条评论，前缀 `**📋 Task Breakdown**`）
 

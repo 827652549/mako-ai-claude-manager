@@ -9,7 +9,7 @@
 ## 0. 模式总则（Invariants）
 
 1. **目标容量**：本工作流支持**最多 5 个项目并行**。任何会引入跨项目阻塞、共享上下文污染的操作（例如把 A 项目的需求写进 B 项目的 PRD）必须立即停下并向 Human 报错。
-2. **真相源**：**Linear 是唯一的项目状态/产物真相源**。所有阶段产物（PRD、TRD、Task 拆分、测试报告）都以 Linear 评论（或挂载的 Document）落库。**设计稿以 Figma 为真相源**（同一 Linear Project 共享一个 Figma 项目），Linear 评论中保留 Figma 链接 + 设计 Token。Cowork 会话只是执行通道，不持有长期状态。
+2. **真相源**：**Linear 是唯一的项目状态/产物真相源**。所有阶段产物（PRD、TRD、Task 拆分、测试报告）都以 Linear 评论（或挂载的 Document）落库。**UI 设计稿以代码为真相源**（Next.js + Tailwind + shadcn/ui 页面，通过 Vercel Preview 可视化），Linear 评论中保留 Preview URL + 设计 Token。Cowork 会话只是执行通道，不持有长期状态。
 3. **状态变更必须显式**：任何主任务/子任务的状态流转，必须通过 Linear MCP 写入，并附一条说明（谁触发、产物链接、下一步）。禁止"心知肚明地推进"。
 4. **职责越界即停**：任何 Agent 收到不属于自己职责的输入，**立即拒绝并把任务交回 Orchestrator**，由 Orchestrator 重新派发。例如仓库架构 Agent 不得修改 PRD 主体、PRD Agent 不得指定技术栈。
 5. **Human 是 8 个主任务状态中至少 3 处的强校验点**（详见 §3）。Agent 不得自行跨越这些点。
