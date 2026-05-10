@@ -26,7 +26,7 @@ maxTurns: 50
 - **中性色调**：以 zinc/neutral 灰阶为主，accent 色仅用于关键交互
 - **精致边框**：border border-border (zinc-200)，subtle 而非 heavy
 - **圆角统一**：rounded-sm (6px), rounded-md (8px), rounded-lg (12px), rounded-xl (16px)
-- **细腻阴影**：shadow-sm 用于卡片悬浮，shadow-xs 用于输入框聚焦
+- **立体层次**：默认状态即带柔和投影，hover 时阴影加深上浮，营造自然的空间纵深感
 
 ### 2. 色彩系统（Tailwind 类名）
 
@@ -101,6 +101,29 @@ font-family: Inter, system-ui, sans-serif
 - Header 使用 `h-16` (64px) + `border-b border-border bg-card`
 - Content 使用 `flex-1 p-6` + `bg-background`
 - 卡片使用 shadcn `Card` + `rounded-lg`
+
+### 6. 阴影与纵深系统
+
+**默认阴影层级**（Tailwind 自定义值）：
+```
+  层级 1 — 导航/头部:   shadow-[0_2px_8px_rgba(0,0,0,0.08)]
+  层级 2 — 卡片默认:   shadow-[0_2px_8px_rgba(0,0,0,0.08),_0_1px_3px_rgba(0,0,0,0.06)]
+  层级 3 — 卡片悬浮:   shadow-[0_8px_24px_rgba(0,0,0,0.12),_0_4px_8px_rgba(0,0,0,0.06)]
+  层级 4 — 主按钮:     shadow-[0_2px_4px_rgba(0,0,0,0.2)]
+  层级 5 — 主按钮悬浮: shadow-[0_4px_8px_rgba(0,0,0,0.25)]
+```
+
+**暗色模式**（shadow 值需加强，暗背景下视觉感知减弱）：
+```
+  导航/头部:   shadow-[0_2px_12px_rgba(0,0,0,0.4)]
+  卡片默认:   shadow-[0_2px_8px_rgba(0,0,0,0.4)]
+  卡片悬浮:   shadow-[0_8px_24px_rgba(0,0,0,0.5)]
+```
+
+**使用原则**：
+- 所有卡片、面板在默认状态即带阴影（非仅 hover）
+- hover 态通过 `transition-shadow` 过渡，时长 150ms
+- 深色模式下阴影透明度 ×4~5 倍补偿
 
 ## 产出
 
