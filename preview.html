@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard - mako-ai-claude-manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --background: #fafafa; --foreground: #09090b;
+  --card: #ffffff; --card-foreground: #09090b;
+  --primary: #2563eb; --primary-foreground: #ffffff;
+  --secondary: #f4f4f5; --secondary-foreground: #18181b;
+  --muted: #f4f4f5; --muted-foreground: #71717a;
+  --accent: #f4f4f5; --accent-foreground: #18181b;
+  --destructive: #dc2626; --destructive-foreground: #ffffff;
+  --border: #e4e4e7; --input: #e4e4e7; --ring: rgba(59,130,246,0.4);
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #09090b; --foreground: #fafafa;
+    --card: #18181b; --card-foreground: #fafafa;
+    --secondary: #27272a; --secondary-foreground: #fafafa;
+    --muted: #27272a; --muted-foreground: #a1a1aa;
+    --accent: #27272a; --accent-foreground: #fafafa;
+    --border: #27272a; --input: #27272a;
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--background); color: var(--foreground);
+  font-size: 14px; line-height: 1.5; min-height: 100vh;
+}
+.layout { display: flex; min-height: 100vh; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 240px; background: var(--card); border-right: 1px solid var(--border);
+  padding: 16px 12px; display: flex; flex-direction: column; gap: 2px;
+  flex-shrink: 0;
+}
+.sidebar-section { font-size: 11px; font-weight: 500; color: var(--muted-foreground); padding: 8px 10px 4px; letter-spacing: 0.05em; text-transform: uppercase; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  border-radius: 6px; font-size: 13px; color: var(--muted-foreground);
+  cursor: pointer; transition: all 0.15s; text-decoration: none;
+}
+.nav-item:hover { background: var(--accent); color: var(--foreground); }
+.nav-item.active { background: var(--accent); color: var(--foreground); font-weight: 500; }
+.nav-icon {
+  width: 20px; height: 20px; border-radius: 4px; display: flex;
+  align-items: center; justify-content: center; font-size: 10px;
+  font-weight: 600; background: var(--muted); color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+.nav-item.active .nav-icon { background: var(--primary); color: var(--primary-foreground); }
+.sidebar-divider { height: 1px; background: var(--border); margin: 8px 0; }
+
+/* ── Main ── */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+/* ── Header ── */
+.header {
+  height: 64px; background: var(--card); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 24px; gap: 16px;
+}
+.logo { font-size: 18px; font-weight: 700; color: var(--foreground); white-space: nowrap; }
+.search {
+  height: 36px; width: 320px; background: var(--background); border: 1px solid var(--border);
+  border-radius: 6px; padding: 0 12px; font-size: 13px; color: var(--foreground);
+  outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.search:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--ring); }
+.search::placeholder { color: var(--muted-foreground); }
+.header-spacer { flex: 1; }
+.avatar {
+  width: 32px; height: 32px; border-radius: 16px; background: var(--primary);
+  color: var(--primary-foreground); display: flex; align-items: center;
+  justify-content: center; font-size: 13px; font-weight: 600; flex-shrink: 0;
+}
+
+/* ── Content ── */
+.content { flex: 1; padding: 32px; overflow-y: auto; }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 32px; }
+.page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+.page-desc { font-size: 14px; color: var(--muted-foreground); margin-top: 4px; }
+.btn {
+  height: 36px; padding: 0 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
+  border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+  transition: all 0.15s; white-space: nowrap;
+}
+.btn-primary { background: var(--primary); color: var(--primary-foreground); }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-secondary { background: var(--card); color: var(--foreground); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--accent); }
+
+/* ── Stats Grid ── */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+.stat-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 24px; transition: box-shadow 0.15s, border-color 0.15s;
+}
+.stat-card:hover { box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-color: #d4d4d8; }
+.stat-value { font-size: 32px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+.stat-label { font-size: 13px; color: var(--muted-foreground); margin-top: 8px; }
+.stat-change { font-size: 12px; margin-top: 12px; display: flex; align-items: center; gap: 4px; }
+.stat-change.up { color: #16a34a; }
+.stat-change.down { color: #dc2626; }
+
+/* ── Table ── */
+.table-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.table-header { padding: 16px 24px; border-bottom: 1px solid var(--border); }
+.table-title { font-size: 16px; font-weight: 600; }
+.table-desc { font-size: 13px; color: var(--muted-foreground); margin-top: 2px; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left; padding: 12px 24px; font-size: 12px; font-weight: 500;
+  color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border); background: var(--muted);
+}
+td { padding: 12px 24px; font-size: 13px; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--accent); }
+
+/* ── Badge ── */
+.badge {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
+  border-radius: 11px; font-size: 11px; font-weight: 500; white-space: nowrap;
+}
+.badge-default { background: var(--primary); color: var(--primary-foreground); }
+.badge-secondary { background: var(--secondary); color: var(--secondary-foreground); }
+.badge-success { background: #dcfce7; color: #166534; }
+.badge-warning { background: #fef9c3; color: #854d0e; }
+.badge-destructive { background: #fee2e2; color: #991b1b; }
+@media (prefers-color-scheme: dark) {
+  .badge-success { background: #14532d; color: #86efac; }
+  .badge-warning { background: #713f12; color: #fde047; }
+  .badge-destructive { background: #7f1d1d; color: #fca5a5; }
+}
+
+/* ── Activity Row ── */
+.activity-row { display: flex; align-items: center; gap: 12px; }
+.activity-dot { width: 8px; height: 8px; border-radius: 4px; flex-shrink: 0; }
+.activity-dot.green { background: #16a34a; }
+.activity-dot.blue { background: #2563eb; }
+.activity-dot.yellow { background: #f59e0b; }
+.activity-dot.red { background: #dc2626; }
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .sidebar { display: none; }
+}
+@media (max-width: 640px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .search { width: 100%; }
+  .content { padding: 16px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-section">Navigation</div>
+  <a class="nav-item active"><span class="nav-icon">D</span> Dashboard</a>
+  <a class="nav-item"><span class="nav-icon">S</span> Skills</a>
+  <a class="nav-item"><span class="nav-icon">A</span> Agents</a>
+  <a class="nav-item"><span class="nav-icon">M</span> MCP Servers</a>
+  <div class="sidebar-divider"></div>
+  <div class="sidebar-section">Configuration</div>
+  <a class="nav-item"><span class="nav-icon">P</span> Permissions</a>
+  <a class="nav-item"><span class="nav-icon">R</span> Memory</a>
+  <a class="nav-item"><span class="nav-icon">G</span> Settings</a>
+</aside>
+
+<!-- Main -->
+<div class="main">
+
+<!-- Header -->
+<header class="header">
+  <span class="logo">mako-ai</span>
+  <input class="search" type="text" placeholder="Search skills, agents...">
+  <div class="header-spacer"></div>
+  <div class="avatar">M</div>
+</header>
+
+<!-- Content -->
+<main class="content">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Dashboard</h1>
+      <p class="page-desc">Overview of your Claude Code configuration and activity.</p>
+    </div>
+    <button class="btn btn-primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Skill
+    </button>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value">12</div>
+      <div class="stat-label">Total Skills</div>
+      <div class="stat-change up">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>
+        +3 this week
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">3</div>
+      <div class="stat-label">Active Agents</div>
+      <div class="stat-change up">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>
+        +1 this week
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">5</div>
+      <div class="stat-label">MCP Servers</div>
+      <div class="stat-change" style="color:var(--muted-foreground)">No change</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">2</div>
+      <div class="stat-label">Projects</div>
+      <div class="stat-change up">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>
+        +1 this week
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="table-card">
+    <div class="table-header">
+      <div class="table-title">Recent Activity</div>
+      <div class="table-desc">Latest workflow actions and their status.</div>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Action</th><th>Target</th><th>Status</th><th>Time</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><div class="activity-row"><span class="activity-dot green"></span>Research Phase</div></td>
+          <td>MAK-299</td>
+          <td><span class="badge badge-success">Completed</span></td>
+          <td style="color:var(--muted-foreground)">2 hours ago</td>
+        </tr>
+        <tr>
+          <td><div class="activity-row"><span class="activity-dot blue"></span>UI Design</div></td>
+          <td>MAK-299</td>
+          <td><span class="badge badge-default">In Progress</span></td>
+          <td style="color:var(--muted-foreground)">30 min ago</td>
+        </tr>
+        <tr>
+          <td><div class="activity-row"><span class="activity-dot yellow"></span>PR Review</div></td>
+          <td>PR #4</td>
+          <td><span class="badge badge-warning">Pending</span></td>
+          <td style="color:var(--muted-foreground)">1 hour ago</td>
+        </tr>
+        <tr>
+          <td><div class="activity-row"><span class="activity-dot green"></span>Deploy</div></td>
+          <td>Production</td>
+          <td><span class="badge badge-success">Success</span></td>
+          <td style="color:var(--muted-foreground)">3 hours ago</td>
+        </tr>
+        <tr>
+          <td><div class="activity-row"><span class="activity-dot red"></span>Rate Limit</div></td>
+          <td>Linear API</td>
+          <td><span class="badge badge-destructive">Limited</span></td>
+          <td style="color:var(--muted-foreground)">5 hours ago</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</main>
+</div>
+</div>
+</body>
+</html>
