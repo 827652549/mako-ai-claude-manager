@@ -47,8 +47,32 @@ interface ModuleCard {
   isError: boolean;
 }
 
+/** Static landing page when ~/.claude/ is not available (e.g. Vercel) */
+function LandingPage() {
+  return (
+    <div className="flex items-center justify-center min-h-[80vh]">
+      <div className="max-w-xl text-center space-y-4 p-6">
+        <h1 className="text-3xl font-bold">Claude Code Manager</h1>
+        <p className="text-muted-foreground leading-relaxed">
+          Claude Code Manager 是一个本地运行的可视化管理工具，用于浏览和查看
+          <code className="mx-1 px-1.5 py-0.5 rounded bg-muted text-sm">
+            ~/.claude/
+          </code>
+          目录下的配置，包括 Agent、Skill、权限规则、全局记忆等。支持深色/浅色主题切换和移动端适配。
+        </p>
+        <p className="text-sm text-muted-foreground">
+          本地启动:{" "}
+          <code className="px-1.5 py-0.5 rounded bg-muted">bun run dev</code>
+          {" → "}
+          <code className="px-1.5 py-0.5 rounded bg-muted">localhost:3000</code>
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default async function DashboardPage() {
-  // Fetch all data in parallel, catching errors individually
+  // Try to fetch all data — if ~/.claude/ doesn't exist (e.g. Vercel), show landing page
   const [
     settingsResult,
     agentsResult,
@@ -64,6 +88,20 @@ export default async function DashboardPage() {
     readClaudeMd(),
     getDirectoryTree(),
   ]);
+
+  // If ALL reads failed, we're likely on Vercel — show landing page
+  const allFailed = [
+    settingsResult,
+    agentsResult,
+    skillsResult,
+    rulesResult,
+    claudeMdResult,
+    directoryResult,
+  ].every((r) => r.status === "rejected");
+
+  if (allFailed) {
+    return <LandingPage />;
+  }
 
   // Extract values or mark as error
   const settings =
