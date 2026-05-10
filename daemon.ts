@@ -1,9 +1,12 @@
 /**
- * Local daemon that polls Linear for PENDING markers and executes
- * workflow actions via `claude -p` (Claude Code CLI).
+ * Local daemon that polls a Linear QUEUE issue for PENDING markers
+ * and executes workflow actions via `claude -p` (Claude Code CLI).
+ *
+ * Architecture: webhook writes PENDING to QUEUE issue (MAK-300),
+ * daemon polls only that one issue's comments = 2 API calls per poll.
  *
  * Usage:
- *   bun run daemon              # start polling
+ *   bun run daemon              # continuous polling (60s interval)
  *   bun run daemon --once       # single poll then exit
  */
 
@@ -14,11 +17,14 @@ import { spawn } from "node:child_process";
 // Config
 // ---------------------------------------------------------------------------
 
-const POLL_INTERVAL_MS = 5_000; // 5 seconds
+const POLL_INTERVAL_MS = 60_000; // 60 seconds (~120 API calls/hour, well under 2500 limit)
 const CLAUDE_TIMEOUT_MS = 300_000; // 5 minutes per execution
 const MAX_TURNS = 50;
 
-// Marker comment prefixes
+// The QUEUE issue where webhook writes PENDING markers
+const QUEUE_ISSUE_ID = "MAK-300";
+
+// Marker prefixes
 const PENDING_PREFIX = "🤖 **⏳ PENDING:";
 const DONE_PREFIX = "🤖 **✅ DONE:";
 const ERROR_PREFIX = "🤖 **❌ ERROR:";
@@ -35,16 +41,7 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 1. 读取 issue 的标题和描述，判定是"需求"还是"技改"
 2. 分支A（需求）：产出 PRD → Task 拆分
 3. 分支B（技改）：产出 TRD → Task 拆分
-4. 将所有产物以结构化 Markdown 格式输出
-
-输出格式（严格遵守）：
----PRD_START---
-（PRD 内容）
----PRD_END---
-
----TASK_BREAKDOWN_START---
-（JSON 格式的 Task 拆分）
----TASK_BREAKDOWN_END---`,
+4. 将所有产物以结构化 Markdown 格式输出`,
 
   advance: `你是 project-lead Agent（推进模式）。
 你的任务是根据 issue 当前状态，推进到下一个工作流阶段。
@@ -54,8 +51,7 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 - 开发中 → 检查子任务完成情况，推进到待测试
 - 待测试 → 执行测试，推进到待发布
 
-请读取 issue 的当前状态和历史评论，执行对应阶段的工作。
-将执行结果以 Markdown 格式输出。`,
+请读取 issue 的当前状态和历史评论，执行对应阶段的工作。`,
 
   release: `你是 project-lead Agent（发布模式）。
 你的任务是执行发布流程。
@@ -71,26 +67,21 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function parsePendingMarker(body: string): { action: string } | null {
+function parsePendingMarker(body: string): { action: string; context: Record<string, string> | null } | null {
   const match = body.match(/⏳ PENDING: (\w+)/);
   if (!match) return null;
-  return { action: match[1]! };
-}
 
-function parseContextFromMarker(body: string): Record<string, string> | null {
   const jsonMatch = body.match(/```json\n([\s\S]*?)\n```/);
-  if (!jsonMatch) return null;
-  try {
-    return JSON.parse(jsonMatch[1]!) as Record<string, string>;
-  } catch {
-    return null;
+  let context: Record<string, string> | null = null;
+  if (jsonMatch) {
+    try {
+      context = JSON.parse(jsonMatch[1]!) as Record<string, string>;
+    } catch { /* ignore */ }
   }
+
+  return { action: match[1]!, context };
 }
 
-/**
- * Execute `claude -p` with the given prompt via stdin.
- * claude -p reads prompt from stdin when no positional arg is given.
- */
 function executeClaude(prompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn("claude", [
@@ -105,14 +96,9 @@ function executeClaude(prompt: string): Promise<string> {
     let stdout = "";
     let stderr = "";
 
-    child.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
-    });
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
+    child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+    child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
 
-    // Write prompt to stdin and close
     child.stdin.write(prompt);
     child.stdin.end();
 
@@ -123,11 +109,9 @@ function executeClaude(prompt: string): Promise<string> {
 
     child.on("close", (code) => {
       clearTimeout(timer);
-      if (stderr) {
-        console.error(`[daemon] claude stderr: ${stderr.slice(0, 500)}`);
-      }
+      if (stderr) console.error(`[daemon] claude stderr: ${stderr.slice(0, 300)}`);
       if (code !== 0 && code !== null) {
-        reject(new Error(`claude -p exited with code ${code}: ${stderr.slice(0, 500)}`));
+        reject(new Error(`claude -p exit ${code}: ${stderr.slice(0, 300)}`));
         return;
       }
       resolve(stdout.trim());
@@ -141,96 +125,103 @@ function executeClaude(prompt: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Main poll loop
+// Main poll loop — only polls QUEUE issue comments
 // ---------------------------------------------------------------------------
 
 async function pollOnce(client: LinearClient): Promise<number> {
-  const team = await client.team("244e065a-d5e3-4a57-bdf9-c482c6cb479f");
-  const issues = await team.issues({
-    filter: {
-      state: { type: { nin: ["completed", "canceled"] } },
-    },
-    first: 20,
-  });
+  // Single API call: get QUEUE issue
+  const queueIssue = await client.issue(QUEUE_ISSUE_ID);
+
+  // Single API call: get its comments
+  const comments = await queueIssue.comments({ first: 20 });
 
   let processedCount = 0;
 
-  for (const issue of issues.nodes) {
-    const comments = await issue.comments({ first: 20,  });
+  for (const comment of comments.nodes) {
+    const body = comment.body;
+    if (!body || !body.includes(PENDING_PREFIX)) continue;
 
-    for (const comment of comments.nodes) {
-      const body = comment.body;
-      if (!body || !body.includes(PENDING_PREFIX)) continue;
+    const parsed = parsePendingMarker(body);
+    if (!parsed) continue;
 
-      const parsed = parsePendingMarker(body);
-      if (!parsed) continue;
+    // Check if already resolved
+    const hasResolution = comments.nodes.some(
+      (c) =>
+        new Date(c.createdAt) > new Date(comment.createdAt) &&
+        c.body &&
+        (c.body.includes(DONE_PREFIX) || c.body.includes(ERROR_PREFIX)),
+    );
+    if (hasResolution) continue;
 
-      // Check if already resolved (has DONE or ERROR after this comment)
-      const hasResolution = comments.nodes.some(
-        (c) =>
-          new Date(c.createdAt) > new Date(comment.createdAt) &&
-          c.body &&
-          (c.body.includes(DONE_PREFIX) || c.body.includes(ERROR_PREFIX)),
-      );
-      if (hasResolution) continue;
+    const { action, context } = parsed;
+    const markerId = comment.id;
 
-      const markerId = comment.id;
-      const action = parsed.action;
-      const issueId = issue.id;
+    // Target issue info comes from the marker context
+    const targetIssueId = context?.targetIssueId;
+    const targetIdentifier = context?.targetIdentifier ?? "unknown";
+    const title = context?.title ?? "unknown";
+    const description = context?.description ?? "";
+    const status = context?.status ?? "Unknown";
 
-      console.log(`[daemon] Found PENDING: action=${action}, issue=${issue.identifier}`);
+    if (!targetIssueId) {
+      console.error(`[daemon] PENDING marker missing targetIssueId, skipping`);
+      continue;
+    }
 
-      const context = parseContextFromMarker(body);
-      const state = await issue.state;
+    console.log(`[daemon] Found PENDING: action=${action}, target=${targetIdentifier}`);
 
-      const userMessage = [
-        `Issue ID: ${issueId}`,
-        `Issue Identifier: ${issue.identifier}`,
-        `Title: ${issue.title}`,
-        `Description: ${issue.description ?? "(empty)"}`,
-        `Current Status: ${state?.name ?? "Unknown"}`,
-        context ? `Additional Context: ${JSON.stringify(context)}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
+    const systemPrompt = SYSTEM_PROMPTS[action];
+    if (!systemPrompt) {
+      console.error(`[daemon] Unknown action: ${action}, skipping`);
+      continue;
+    }
 
-      const systemPrompt = SYSTEM_PROMPTS[action];
-      if (!systemPrompt) {
-        console.error(`[daemon] Unknown action: ${action}, skipping`);
-        continue;
-      }
+    const userMessage = [
+      `Issue ID: ${targetIssueId}`,
+      `Issue Identifier: ${targetIdentifier}`,
+      `Title: ${title}`,
+      `Description: ${description}`,
+      `Current Status: ${status}`,
+    ].join("\n");
 
-      try {
-        console.log(`[daemon] Executing claude -p for action=${action}...`);
-        const prompt = `${systemPrompt}\n\n---\n\n${userMessage}`;
-        const result = await executeClaude(prompt);
+    try {
+      console.log(`[daemon] Executing claude -p for action=${action}...`);
+      const prompt = `${systemPrompt}\n\n---\n\n${userMessage}`;
+      const result = await executeClaude(prompt);
 
-        // Write DONE comment with full result
-        await client.createComment({
-          issueId,
-          body: `${DONE_PREFIX}${action}**\n\n${result}`,
-        });
+      // Write DONE result comment on the TARGET issue (not the queue)
+      await client.createComment({
+        issueId: targetIssueId,
+        body: `🤖 **📋 Agent Result** (${action})\n\n${result}`,
+      });
 
-        // Reply to PENDING marker
-        await client.createComment({
-          issueId,
-          body: `${DONE_PREFIX}${action}** — 执行完成`,
-          parentId: markerId,
-        });
+      // Mark PENDING as resolved on the QUEUE issue
+      await client.createComment({
+        issueId: queueIssue.id,
+        body: `${DONE_PREFIX}${action}** — ${targetIdentifier} 完成`,
+        parentId: markerId,
+      });
 
-        processedCount++;
-        console.log(`[daemon] ✅ action=${action} issue=${issue.identifier} done`);
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        console.error(`[daemon] ❌ action=${action} issue=${issue.identifier}: ${errorMessage}`);
+      processedCount++;
+      console.log(`[daemon] ✅ action=${action} target=${targetIdentifier} done`);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error(`[daemon] ❌ action=${action} target=${targetIdentifier}: ${errorMessage}`);
 
-        await client.createComment({
-          issueId,
-          body: `${ERROR_PREFIX}${action}**\n\n${errorMessage}`,
-        });
+      // Write error on the TARGET issue
+      await client.createComment({
+        issueId: targetIssueId,
+        body: `🤖 **❌ Agent Error** (${action})\n\n${errorMessage}`,
+      });
 
-        processedCount++;
-      }
+      // Mark PENDING as errored on the QUEUE issue
+      await client.createComment({
+        issueId: queueIssue.id,
+        body: `${ERROR_PREFIX}${action}** — ${targetIdentifier} 失败: ${errorMessage.slice(0, 100)}`,
+        parentId: markerId,
+      });
+
+      processedCount++;
     }
   }
 
@@ -249,6 +240,7 @@ async function main() {
 
   console.log(`[daemon] Starting (mode: ${runOnce ? "once" : "continuous"})`);
   console.log(`[daemon] Poll interval: ${POLL_INTERVAL_MS / 1000}s`);
+  console.log(`[daemon] Queue issue: ${QUEUE_ISSUE_ID}`);
 
   if (runOnce) {
     const count = await pollOnce(client);

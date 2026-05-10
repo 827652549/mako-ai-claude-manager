@@ -2,7 +2,7 @@
  * Linear Webhook endpoint (Vercel Function).
  *
  * Self-contained: all logic inlined (no external imports).
- * Validates → routes → writes PENDING marker to Linear.
+ * Validates → routes → writes PENDING marker to QUEUE issue.
  *
  * POST /api/webhook - receive Linear events
  * GET  /api/webhook - health check
@@ -131,48 +131,41 @@ function getEventId(
 }
 
 /* ================================================================== */
-/*  Issue context & PENDING marker                                     */
+/*  Queue Issue ID & PENDING marker                                    */
 /* ================================================================== */
 
-interface IssueContext {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-}
-
-async function fetchIssueContext(
-  client: LinearClient,
-  issueId: string,
-): Promise<IssueContext> {
-  const issue = await client.issue(issueId);
-  const state = await issue.state;
-  return {
-    id: issueId,
-    title: issue.title,
-    description: issue.description ?? "",
-    status: state?.name ?? "Unknown",
-  };
-}
+const QUEUE_ISSUE_ID = "MAK-300";
 
 async function writePendingMarker(
   client: LinearClient,
   action: string,
-  issueId: string,
-  context: IssueContext,
+  targetIssueId: string,
 ): Promise<void> {
-  const contextJson = JSON.stringify(context, null, 2);
+  // Fetch target issue context to embed in the marker
+  const issue = await client.issue(targetIssueId);
+  const state = await issue.state;
+
+  const context = {
+    targetIssueId,
+    targetIdentifier: issue.identifier,
+    title: issue.title,
+    description: issue.description ?? "",
+    status: state?.name ?? "Unknown",
+  };
+
   const body = [
     `🤖 **⏳ PENDING: ${action}**`,
     "",
-    "Agent 即将执行此操作。结果将自动写回。",
+    `Target: ${issue.identifier} — ${issue.title}`,
     "",
     "```json",
-    contextJson,
+    JSON.stringify(context, null, 2),
     "```",
   ].join("\n");
 
-  await client.createComment({ issueId, body });
+  // Write to the QUEUE issue, not the target issue
+  const queueIssue = await client.issue(QUEUE_ISSUE_ID);
+  await client.createComment({ issueId: queueIssue.id, body });
 }
 
 /* ================================================================== */
@@ -207,7 +200,6 @@ export default async function handler(
 ): Promise<void> {
   res.setHeader("Content-Type", "application/json");
 
-  // ---- GET: health check ----
   if (req.method === "GET") {
     res.statusCode = 200;
     res.end(JSON.stringify({ status: "ok" }));
@@ -286,9 +278,9 @@ export default async function handler(
       payload as unknown as WebhookPayload,
     );
     action = commandResult.action;
-    const issueId = commandResult.issueId;
+    const targetIssueId = commandResult.issueId;
 
-    console.log(`[webhook] Command: action=${action}, issue=${issueId}`);
+    console.log(`[webhook] Command: action=${action}, target=${targetIssueId}`);
 
     // 6. Skip ignores
     if (action === "ignore") {
@@ -299,13 +291,12 @@ export default async function handler(
       return;
     }
 
-    // 7. Fetch context & write PENDING marker
+    // 7. Write PENDING marker to QUEUE issue
     const linearApiKey = process.env.LINEAR_API_KEY;
     if (!linearApiKey) throw new Error("LINEAR_API_KEY is not set");
 
     const linearClient = new LinearClient({ apiKey: linearApiKey });
-    const issueContext = await fetchIssueContext(linearClient, issueId);
-    await writePendingMarker(linearClient, action, issueId, issueContext);
+    await writePendingMarker(linearClient, action, targetIssueId);
 
     // 8. Respond
     const duration = Date.now() - startTime;
