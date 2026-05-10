@@ -72,21 +72,26 @@ allowed-tools:
 
 ### 2c. 分支 A — Step 3：UI 设计
 
-基于 UX 方案，产出视觉设计规范，写入 Linear 评论（前缀 `**🖌️ UI Agent**`）：
+基于 UX 方案，产出视觉设计。**设计稿写入 Figma，设计 token 和组件清单写入 Linear 评论。**
 
-#### 视觉风格定义
-整体风格、主色调/辅助色（hex 色值）、字体层级、圆角/阴影、间距系统。
+#### Figma 产出（主产物）
 
-#### 组件清单
-列出 UX 方案涉及的所有 UI 组件，标注类型、用途、状态变体，区分可复用 shadcn/ui 和需自定义的组件。
+使用 Figma MCP 工具创建设计（同一 Linear Project 共享同一个 Figma 项目）：
 
-#### 页面布局草案
-对 UX 定义的每个页面，用 ASCII 线框给出布局，标注响应式断点。
+1. **页面布局图**：用 `generate_diagram` 在 FigJam 中创建页面布局线框图（Header、Sidebar、Content 等区块，标注响应式断点）
+2. **组件结构图**：用 `generate_diagram` 创建组件层级关系图（页面 → 区块 → 组件，标注类型和状态变体）
+3. **用户流程可视化**：用 `generate_diagram` 将 UX 用户流程图可视化为流程图
 
-#### 设计 Token
-输出可直接用于代码的 JSON 格式 design token（colors、spacing、borderRadius）。
+如果 Linear Project 描述中没有 Figma 链接，先创建并写回 Project 描述。
 
-**禁止**：不改 UX 流程结构、不改 PRD 目标、不写代码实现、不指定交互逻辑。
+#### Linear 评论（辅助产物，前缀 `**🖌️ UI Agent**`）
+
+1. **Figma 链接**：指向设计稿
+2. **视觉风格定义**：整体风格、主色调/辅助色（hex）、字体层级、圆角/阴影、间距系统
+3. **组件清单**：列出 UX 方案涉及的所有 UI 组件，标注类型、用途、状态变体、来源（shadcn/ui 或自定义）
+4. **设计 Token**：JSON 格式（colors、spacing、borderRadius），可直接用于代码
+
+**禁止**：不改 UX 流程结构、不改 PRD 目标、不写代码实现、不指定交互逻辑。同一项目共享同一 Figma 项目。
 
 ### 2d. 分支 A — Step 4：生成 TRD + Task 拆分
 
@@ -144,7 +149,7 @@ allowed-tools:
 **分支 A（需求）**：
 1. PRD（一条评论，前缀 `**📋 PRD Agent**`）
 2. UX 方案（一条评论，前缀 `**🎨 UX Agent**`）
-3. UI 规范（一条评论，前缀 `**🖌️ UI Agent**`）
+3. UI 设计稿（**Figma**，同一 Project 共享） + Linear 评论（前缀 `**🖌️ UI Agent**`：Figma 链接 + 视觉风格 + 组件清单 + 设计 Token JSON）
 4. TRD（一条评论，前缀 `**📋 TRD Agent**`）
 5. Task 拆分 JSON（一条评论，前缀 `**📋 Task Breakdown**`）
 
