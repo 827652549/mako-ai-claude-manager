@@ -25,6 +25,9 @@ import {
   type DirectoryNode,
 } from "@/lib/claude-config";
 
+/** Force SSR — real-time reads from ~/.claude/, never prerendered */
+export const dynamic = "force-dynamic";
+
 /** Recursively count all nodes in a directory tree */
 function countNodes(nodes: DirectoryNode[]): number {
   let count = 0;
@@ -89,20 +92,6 @@ export default async function DashboardPage() {
     getDirectoryTree(),
   ]);
 
-  // If ALL reads failed, we're likely on Vercel — show landing page
-  const allFailed = [
-    settingsResult,
-    agentsResult,
-    skillsResult,
-    rulesResult,
-    claudeMdResult,
-    directoryResult,
-  ].every((r) => r.status === "rejected");
-
-  if (allFailed) {
-    return <LandingPage />;
-  }
-
   // Extract values or mark as error
   const settings =
     settingsResult.status === "fulfilled" ? settingsResult.value : null;
@@ -116,6 +105,29 @@ export default async function DashboardPage() {
     claudeMdResult.status === "fulfilled" ? claudeMdResult.value : null;
   const directoryTree =
     directoryResult.status === "fulfilled" ? directoryResult.value : null;
+
+  // Detect if ~/.claude/ is unavailable:
+  // - All reads rejected (error), OR
+  // - All reads returned empty data (no agents, no skills, no rules, no CLAUDE.md content, no directory)
+  const allRejected = [
+    settingsResult,
+    agentsResult,
+    skillsResult,
+    rulesResult,
+    claudeMdResult,
+    directoryResult,
+  ].every((r) => r.status === "rejected");
+
+  const allEmpty =
+    (agents === null || agents.length === 0) &&
+    (skills === null || skills.length === 0) &&
+    (rules === null || rules.length === 0) &&
+    (claudeMd === null || claudeMd === "") &&
+    (directoryTree === null || directoryTree.length === 0);
+
+  if (allRejected || allEmpty) {
+    return <LandingPage />;
+  }
 
   const modules: ModuleCard[] = [
     {
