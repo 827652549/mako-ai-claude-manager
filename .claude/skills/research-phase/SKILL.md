@@ -80,6 +80,7 @@ allowed-tools:
 
 **设计质量要求**：
 - 遵循 shadcn/ui 美学：极简克制、zinc 灰阶主色、1px 精致边框、4px 网格系统
+- 默认带柔和投影营造立体感，hover 时阴影加深上浮，暗色模式投影补偿加强
 - 使用项目已有的 shadcn/ui 组件（Button、Card、Table、Badge、Input 等）
 - CSS 变量色值（支持暗色模式），不硬编码 hex
 - 响应式布局（sm/md/lg/xl 断点）
@@ -168,7 +169,7 @@ allowed-tools:
 
 - PRD 不指定技术栈、库版本、表结构
 - UX 不改 PRD 主体目标、不指定技术实现、不涉及视觉样式
-- UI 不改 UX 流程结构、不写代码实现
+- UI 不改 UX 流程结构、不写业务逻辑实现
 - TRD 不修改 PRD 主体目标
 - 非目标段是架构的笼头 — 顺手优化 = 越权
 - 验收标准必须可机器校验
