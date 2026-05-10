@@ -35,6 +35,14 @@
 
 ## 变更记录
 
+### 2026-05-10 · feat · v0.5
+
+**摘要**：实现 Linear Webhook 驱动的自治工作流。部署 Vercel Function 接收 Linear 事件，本地 Daemon 轮询 Queue issue 并通过 `claude -p` 执行工作流。用户只需在 Linear 中评论"继续"/"发布"即可推进工作流，无需 CLI 介入。
+
+**影响范围**：api/webhook.ts, daemon.ts, package.json, vercel.json, README.md, MAK-300 (Queue issue)
+
+---
+
 ### 2026-05-10 · refactor · v0.4
 
 **摘要**：将发布流程从「CLI 直推 main」升级为「Feature 分支 + PR + Vercel Preview」模式。repo-worker 现在创建 PR 而非直接合并到 main；Vercel Git 集成自动部署 Preview 环境；发布阶段通过合并 PR 触发 Production 部署。
