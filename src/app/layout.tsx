@@ -3,12 +3,13 @@ import "./globals.css";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AppSidebar } from "@/components/app-sidebar";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: "Claude Code Manager",
-  description: "Linear Webhook driven autonomous workflow powered by Claude",
+  description: "Manage your Claude Code configuration",
 };
 
 export default function RootLayout({
@@ -25,7 +26,12 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <div className="flex min-h-screen">
+            <AppSidebar />
+            <main className="flex-1 overflow-auto">
+              {children}
+            </main>
+          </div>
         </ThemeProvider>
       </body>
     </html>
