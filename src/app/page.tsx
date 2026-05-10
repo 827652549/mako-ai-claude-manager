@@ -28,6 +28,9 @@ import {
 /** Force SSR — real-time reads from ~/.claude/, never prerendered */
 export const dynamic = "force-dynamic";
 
+/** Detect remote deployment (no local ~/.claude/) */
+const IS_REMOTE = process.env.VERCEL === "1";
+
 /** Recursively count all nodes in a directory tree */
 function countNodes(nodes: DirectoryNode[]): number {
   let count = 0;
@@ -50,7 +53,7 @@ interface ModuleCard {
   isError: boolean;
 }
 
-/** Static landing page when ~/.claude/ is not available (e.g. Vercel) */
+/** Static landing page when running on Vercel (no local ~/.claude/) */
 function LandingPage() {
   return (
     <div className="flex items-center justify-center min-h-[80vh]">
@@ -75,7 +78,12 @@ function LandingPage() {
 }
 
 export default async function DashboardPage() {
-  // Try to fetch all data — if ~/.claude/ doesn't exist (e.g. Vercel), show landing page
+  // On Vercel, always show LandingPage (no local ~/.claude/ available)
+  if (IS_REMOTE) {
+    return <LandingPage />;
+  }
+
+  // Try to fetch all data — if ~/.claude/ doesn't exist, show landing page
   const [
     settingsResult,
     agentsResult,
@@ -106,9 +114,8 @@ export default async function DashboardPage() {
   const directoryTree =
     directoryResult.status === "fulfilled" ? directoryResult.value : null;
 
-  // Detect if ~/.claude/ is unavailable:
-  // - All reads rejected (error), OR
-  // - All reads returned empty data (no agents, no skills, no rules, no CLAUDE.md content, no directory)
+  // Detect if ~/.claude/ is unavailable: all reads rejected or all core data empty
+  // Note: rules are repo-level, so they're excluded from the empty check
   const allRejected = [
     settingsResult,
     agentsResult,
@@ -118,14 +125,13 @@ export default async function DashboardPage() {
     directoryResult,
   ].every((r) => r.status === "rejected");
 
-  const allEmpty =
+  const allCoreDataEmpty =
     (agents === null || agents.length === 0) &&
     (skills === null || skills.length === 0) &&
-    (rules === null || rules.length === 0) &&
     (claudeMd === null || claudeMd === "") &&
     (directoryTree === null || directoryTree.length === 0);
 
-  if (allRejected || allEmpty) {
+  if (allRejected || allCoreDataEmpty) {
     return <LandingPage />;
   }
 
