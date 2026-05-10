@@ -1,25 +1,15 @@
 /**
  * Linear Webhook endpoint (Vercel Function).
  *
- * Full flow:
- *   POST /api/webhook
- *     -> verifySignature (fail -> 401)
- *     -> parse JSON
- *     -> idempotent dedup
- *     -> filter Issue/Comment events
- *     -> parseCommand (ignore -> 200, no action)
- *     -> fetch issue context from Linear
- *     -> executeAgent
- *     -> writeResultToLinear
- *     -> 200
+ * Thin relay: validates → routes → writes PENDING marker to Linear.
+ * Agent execution is handled by the local daemon (daemon.ts).
  *
- * GET - Health check.
+ * POST /api/webhook - receive Linear events
+ * GET  /api/webhook - health check
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { verifySignature } from "../lib/verify-signature";
 import parseCommand from "../lib/command-router";
-import { executeAgent } from "../lib/agent-executor";
-import { writeResultToLinear } from "../lib/linear-writer";
 import { LinearClient } from "@linear/sdk";
 
 /* ------------------------------------------------------------------ */
@@ -27,7 +17,7 @@ import { LinearClient } from "@linear/sdk";
 /* ------------------------------------------------------------------ */
 
 const processedEvents = new Map<string, number>();
-const DEDUP_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const DEDUP_TTL_MS = 5 * 60 * 1000;
 
 function cleanupExpiredEvents(): void {
   const now = Date.now();
@@ -42,7 +32,6 @@ function cleanupExpiredEvents(): void {
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-/** Read the full request body as a UTF-8 string. */
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -52,10 +41,6 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-/**
- * Extract a stable event ID for idempotent deduplication.
- * Priority: Linear-Event header > webhookDeliveryId in body.
- */
 function getEventId(
   req: IncomingMessage,
   payload: Record<string, unknown>,
@@ -64,12 +49,10 @@ function getEventId(
   if (headerValue) {
     return Array.isArray(headerValue) ? headerValue[0]! : headerValue;
   }
-
-  const deliveryId = (payload as Record<string, unknown>).webhookDeliveryId;
+  const deliveryId = payload.webhookDeliveryId;
   if (typeof deliveryId === "string" && deliveryId.length > 0) {
     return deliveryId;
   }
-
   return null;
 }
 
@@ -79,6 +62,58 @@ function getEventId(
 
 const SUPPORTED_TYPES = new Set(["Issue", "Comment"]);
 const SUPPORTED_ACTIONS = new Set(["create", "update"]);
+
+/* ------------------------------------------------------------------ */
+/*  PENDING marker                                                     */
+/* ------------------------------------------------------------------ */
+
+interface IssueContext {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+}
+
+async function writePendingMarker(
+  linearClient: LinearClient,
+  action: string,
+  issueId: string,
+  context: IssueContext,
+): Promise<void> {
+  const contextJson = JSON.stringify(context, null, 2);
+  const body = [
+    `🤖 **⏳ PENDING: ${action}**`,
+    "",
+    "Agent 即将执行此操作。结果将自动写回。",
+    "",
+    "```json",
+    contextJson,
+    "```",
+  ].join("\n");
+
+  await linearClient.createComment({
+    issueId,
+    body,
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/*  Issue context fetcher                                              */
+/* ------------------------------------------------------------------ */
+
+async function fetchIssueContext(
+  linearClient: LinearClient,
+  issueId: string,
+): Promise<IssueContext> {
+  const issue = await linearClient.issue(issueId);
+  const state = await issue.state;
+  return {
+    id: issueId,
+    title: issue.title,
+    description: issue.description ?? "",
+    status: state?.name ?? "Unknown",
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /*  Structured log helper                                              */
@@ -98,24 +133,6 @@ function logStructured(info: StructuredLog): void {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Issue context fetcher                                              */
-/* ------------------------------------------------------------------ */
-
-async function fetchIssueContext(
-  linearClient: LinearClient,
-  issueId: string,
-): Promise<{ id: string; title: string; description: string; status: string }> {
-  const issue = await linearClient.issue(issueId);
-  const state = await issue.state;
-  return {
-    id: issueId,
-    title: issue.title,
-    description: issue.description ?? "",
-    status: state?.name ?? "Unknown",
-  };
-}
-
-/* ------------------------------------------------------------------ */
 /*  Handler                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -132,7 +149,6 @@ export default async function handler(
     return;
   }
 
-  // ---- Only POST is accepted from here ----
   if (req.method !== "POST") {
     res.statusCode = 405;
     res.end(JSON.stringify({ error: "Method not allowed" }));
@@ -142,10 +158,9 @@ export default async function handler(
   const startTime = Date.now();
   let eventId: string | null = null;
   let action = "unknown";
-  let issueId = "";
 
   try {
-    // 1. Read raw body (needed for signature verification)
+    // 1. Read raw body
     const body = await readBody(req);
 
     // 2. Verify HMAC signature
@@ -168,7 +183,7 @@ export default async function handler(
       return;
     }
 
-    // 3. Parse JSON payload
+    // 3. Parse JSON
     let payload: Record<string, unknown>;
     try {
       payload = JSON.parse(body) as Record<string, unknown>;
@@ -178,7 +193,7 @@ export default async function handler(
       return;
     }
 
-    // 4. Idempotent deduplication by event ID
+    // 4. Dedup
     eventId = getEventId(req, payload);
     if (eventId) {
       if (processedEvents.has(eventId)) {
@@ -191,7 +206,7 @@ export default async function handler(
       cleanupExpiredEvents();
     }
 
-    // 5. Filter: only process Issue / Comment create / update
+    // 5. Filter: only Issue / Comment create / update
     const eventType = payload.type;
     const eventAction = payload.action;
 
@@ -199,29 +214,21 @@ export default async function handler(
       !SUPPORTED_TYPES.has(eventType as string) ||
       !SUPPORTED_ACTIONS.has(eventAction as string)
     ) {
-      console.log(
-        `[webhook] Skipped event: type=${eventType}, action=${eventAction}`,
-      );
       res.statusCode = 200;
       res.end(JSON.stringify({ status: "ok", skipped: true }));
       return;
     }
 
-    // 6. Route to command router
-    console.log(
-      `[webhook] Processing event: type=${eventType}, action=${eventAction}, id=${eventId}`,
-    );
+    // 6. Route command
     const commandResult = parseCommand(
       payload as unknown as Parameters<typeof parseCommand>[0],
     );
     action = commandResult.action;
-    issueId = commandResult.issueId;
+    const issueId = commandResult.issueId;
 
-    console.log(
-      `[webhook] Command result: action=${action}, issueId=${issueId}`,
-    );
+    console.log(`[webhook] Command: action=${action}, issue=${issueId}`);
 
-    // 7. Skip if action is "ignore" (ordinary comment, non-matching event)
+    // 7. Skip if action is "ignore"
     if (action === "ignore") {
       const duration = Date.now() - startTime;
       logStructured({ eventId, action, duration, success: true });
@@ -230,7 +237,7 @@ export default async function handler(
       return;
     }
 
-    // 8. Fetch full issue context from Linear
+    // 8. Fetch issue context & write PENDING marker
     const linearApiKey = process.env.LINEAR_API_KEY;
     if (!linearApiKey) {
       throw new Error("LINEAR_API_KEY is not set");
@@ -238,50 +245,24 @@ export default async function handler(
     const linearClient = new LinearClient({ apiKey: linearApiKey });
     const issueContext = await fetchIssueContext(linearClient, issueId);
 
-    // 9. Execute agent
-    const agentResult = await executeAgent(action, issueContext);
+    await writePendingMarker(linearClient, action, issueId, issueContext);
 
-    // 10. Write result back to Linear
-    await writeResultToLinear({
-      action,
-      issueId,
-      result: agentResult,
-    });
-
-    // 11. Structured log + respond
+    // 9. Respond
     const duration = Date.now() - startTime;
-    logStructured({ eventId, action, duration, success: agentResult.success });
+    logStructured({ eventId, action, duration, success: true });
 
     res.statusCode = 200;
     res.end(
       JSON.stringify({
         status: "ok",
         action,
-        success: agentResult.success,
+        queued: true,
       }),
     );
   } catch (err) {
-    // Global error handler: write Agent Error comment to Linear
     const duration = Date.now() - startTime;
     const errorMessage = err instanceof Error ? err.message : String(err);
-
-    console.error(`[webhook] Unhandled error: ${errorMessage}`);
-
-    // Attempt to write error comment to Linear if we have an issueId
-    if (issueId) {
-      try {
-        await writeResultToLinear({
-          action,
-          issueId,
-          result: { success: false, content: "", error: errorMessage },
-        });
-      } catch (writeErr) {
-        console.error(
-          `[webhook] Failed to write error comment: ${writeErr instanceof Error ? writeErr.message : String(writeErr)}`,
-        );
-      }
-    }
-
+    console.error(`[webhook] Error: ${errorMessage}`);
     logStructured({ eventId, action, duration, success: false });
 
     res.statusCode = 500;

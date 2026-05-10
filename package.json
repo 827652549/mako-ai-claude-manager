@@ -6,10 +6,11 @@
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "daemon": "bun run daemon.ts",
+    "daemon:once": "bun run daemon.ts --once"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
     "@linear/sdk": "^40.0.0"
   },
   "devDependencies": {
