@@ -4,14 +4,27 @@
       <stop offset="0%" stop-color="#0f172a"/>
       <stop offset="100%" stop-color="#1e293b"/>
     </linearGradient>
-    <linearGradient id="prompt" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#22d3ee"/>
       <stop offset="100%" stop-color="#06b6d4"/>
     </linearGradient>
   </defs>
   <rect width="180" height="180" rx="38" fill="url(#bg)"/>
-  <text x="22" y="128" font-family="'SF Mono','Fira Code','JetBrains Mono',monospace" font-size="96" font-weight="700" fill="url(#prompt)" letter-spacing="-3">&gt;_</text>
-  <rect x="128" y="72" width="12" height="60" rx="6" fill="#22d3ee" opacity="0.8">
-    <animate attributeName="opacity" values="0.8;0;0.8" dur="1.2s" repeatCount="indefinite"/>
-  </rect>
+  <rect x="45" y="45" width="90" height="90" rx="11" fill="none" stroke="url(#accent)" stroke-width="8"/>
+  <rect x="55" y="55" width="70" height="70" rx="6" fill="none" stroke="url(#accent)" stroke-width="3" opacity="0.4"/>
+  <text x="90" y="108" text-anchor="middle" font-family="'SF Mono','Fira Code','JetBrains Mono',monospace" font-size="52" font-weight="700" fill="url(#accent)">AI</text>
+  <line x1="45" y1="68" x2="22" y2="68" stroke="url(#accent)" stroke-width="6" stroke-linecap="round"/>
+  <line x1="45" y1="90" x2="17" y2="90" stroke="url(#accent)" stroke-width="6" stroke-linecap="round" opacity="0.6"/>
+  <line x1="45" y1="112" x2="22" y2="112" stroke="url(#accent)" stroke-width="6" stroke-linecap="round"/>
+  <line x1="135" y1="68" x2="158" y2="68" stroke="url(#accent)" stroke-width="6" stroke-linecap="round"/>
+  <line x1="135" y1="90" x2="163" y2="90" stroke="url(#accent)" stroke-width="6" stroke-linecap="round" opacity="0.6"/>
+  <line x1="135" y1="112" x2="158" y2="112" stroke="url(#accent)" stroke-width="6" stroke-linecap="round"/>
+  <line x1="73" y1="45" x2="73" y2="22" stroke="url(#accent)" stroke-width="6" stroke-linecap="round" opacity="0.6"/>
+  <line x1="107" y1="45" x2="107" y2="22" stroke="url(#accent)" stroke-width="6" stroke-linecap="round" opacity="0.6"/>
+  <line x1="73" y1="135" x2="73" y2="158" stroke="url(#accent)" stroke-width="6" stroke-linecap="round" opacity="0.6"/>
+  <line x1="107" y1="135" x2="107" y2="158" stroke="url(#accent)" stroke-width="6" stroke-linecap="round" opacity="0.6"/>
+  <circle cx="22" cy="68" r="5" fill="#22d3ee"/>
+  <circle cx="158" cy="68" r="5" fill="#22d3ee"/>
+  <circle cx="22" cy="112" r="5" fill="#22d3ee"/>
+  <circle cx="158" cy="112" r="5" fill="#22d3ee"/>
 </svg>
