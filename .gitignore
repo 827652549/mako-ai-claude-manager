@@ -7,3 +7,6 @@ dist/
 *.tsbuildinfo
 .DS_Store
 .idea/
+
+# Git worktree directories
+mako-ai-claude-manager-MAK-*

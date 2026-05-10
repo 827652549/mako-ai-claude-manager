@@ -25,14 +25,28 @@ maxTurns: 100
 
 ## Boot Sequence（每次唤醒必须执行）
 
-1. 用 `mcp__linear__list_issues` 或 `mcp__linear__get_issue` 读取当前主任务
-2. 读取主任务的评论（`mcp__linear__list_comments`），了解已有产物
-3. 读取主任务的子任务（`children`），了解执行进度
-4. 根据主任务状态决定下一步动作
+### 参数传入（支持并行实例）
 
-## Linear 状态 ID Map（Mako2077 团队）
+启动时通过 prompt 传入 issue 标识符：
+```bash
+claude --permission-mode bypassPermissions --agent project-lead --prompt "MAK-301"
+```
 
-更新主任务状态时，用 `mcp__linear__save_issue(id, state=<状态ID>)` 设置：
+### 执行流程
+
+1. **解析 issue 标识符**：从 prompt 中提取 `MAK-{issueNumber}`
+2. **读取主任务**：用 `mcp__linear__get_issue` 读取指定 issue
+3. **读取评论**：`mcp__linear__list_comments`，了解已有产物
+4. **读取子任务**：`children`，了解执行进度
+5. **根据状态决定下一步动作**
+
+### 状态检查（避免冲突）
+
+开始工作前，检查是否有其他实例正在处理同一 issue：
+- 用 `mcp__linear__get_issue` 读取 issue 状态
+- 如状态为"开发中"且已有 worktree 存在（`ls mako-ai-claude-manager-MAK-{issueNumber}`），则跳过或等待
+- 如状态为"待开发"，则正常开始
+
 
 | 状态 | ID | type |
 |------|-----|------|
@@ -68,62 +82,88 @@ maxTurns: 100
 
 开发阶段是唯一需要直接调用 Agent 的阶段（其他阶段用 Skill）：
 
-### 第一步：派发任务
+### Worktree 工作流（必须遵守）
+
+开发任务必须在独立的 git worktree 中进行，避免污染主分支：
+
+#### 第一步：创建 Worktree 并派发任务
 1. 从 Linear 读取主任务下所有子任务（`children`）
 2. 过滤出未完成的子任务（状态不是 Done）
-3. 按 `step` 字段分组，同 step 内并发，跨 step 串行
-4. 对每个子任务，调用 Agent：
-   ```
-   Agent("repo-worker", prompt="执行以下 Task:\n\n标题: {title}\n描述: {description}\n验收标准: {acceptance}\n\nPRD/TRD 上下文:\n{prd_summary}")
-   ```
-
-### 第二步：收集结果
-5. 收集所有 repo-worker 的返回结果
-6. 判断每个子任务是否合格（有 ✅ 且自检通过）
-
-### 第三步：统一 git 操作
-7. **由 project-lead 统一执行** git 操作（repo-worker 不做任何 git 操作）：
+3. 创建 worktree：
    ```bash
+   git worktree add mako-ai-claude-manager-MAK-{issueNumber} -b feature/MAK-{issueNumber} main
+   ```
+4. 按 `step` 字段分组，同 step 内并发，跨 step 串行
+5. 对每个子任务，调用 Agent（在 worktree 目录中执行）：
+   ```
+   Agent("repo-worker", prompt="执行以下 Task:\n\n标题: {title}\n描述: {description}\n验收标准: {acceptance}\n\nPRD/TRD 上下文:\n{prd_summary}\n\n工作目录: mako-ai-claude-manager-MAK-{issueNumber}")
+   ```
+
+#### 第二步：收集结果
+6. 收集所有 repo-worker 的返回结果
+7. 判断每个子任务是否合格（有 ✅ 且自检通过）
+
+#### 第三步：统一 git 操作（在 worktree 目录中）
+8. **由 project-lead 统一执行** git 操作（repo-worker 不做任何 git 操作）：
+   ```bash
+   cd mako-ai-claude-manager-MAK-{issueNumber}
+   
    # 将所有变更文件加入暂存区
    git add <所有变更文件列表>
-
+   
    # 统一提交，commit message 按子任务汇总
    git commit -m "feat: <主任务标题>\n\n- 子任务1: 变更摘要
    - 子任务2: 变更摘要
    ..."
-
-   # 推送到当前 feature 分支
-   git push
+   
+   # 推送到远程 feature 分支
+   git push -u origin feature/MAK-{issueNumber}
    ```
-8. 所有变更必须在同一个 feature 分支上，不创建多个分支
 
-### 第四步：创建 PR（如有需要）
-9. 如当前分支尚无 PR，创建一个：
+#### 第四步：创建 PR
+9. 创建 PR：
    ```bash
-   gh pr create --title "MAK-{issueNumber} <描述性标题>（如: MAK-301 初始化项目一期：Claude Code Manager 可视化管理工具）" --body "$(cat <<'EOF'
+   cd mako-ai-claude-manager-MAK-{issueNumber}
+   gh pr create --title "MAK-{issueNumber} <描述性标题>" --body "$(cat <<'EOF'
    ## Summary
    <所有子任务变更汇总>
-
+   
    ## Changes
    <完整修改文件列表>
-
+   
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
    EOF
    )"
    ```
-10. 如已有 PR，只需 push 即可
 
-### 第五步：更新 Linear 并通知 Human
-11. 合格的子任务标记 Done
-12. 不合格的子任务记录失败原因到 Linear 评论
-13. 所有子任务 Done 后，更新主任务状态为"待测试"
-14. 在主任务评论中写入 PR URL 和变更汇总
-15. 确保 PR 链接已关联到 Linear Issue（GitHub PR 会自动关联到同名分支的 Issue）
+#### 第五步：更新 Linear 并通知 Human
+10. 合格的子任务标记 Done
+11. 不合格的子任务记录失败原因到 Linear 评论
+12. 所有子任务 Done 后，更新主任务状态为"待测试"
+13. 在主任务评论中写入 PR URL 和变更汇总
+14. 确保 PR 链接已关联到 Linear Issue
 
-### 第六步：等待 Human 合并 PR
-16. Human 通过 **Linear 面板** 直接审核并合并 PR（推荐方式）
-17. 合并后检查 main 分支的 Vercel 部署是否成功
-18. 验收通过后，将主任务状态改为"发布完成"
+#### 第六步：等待 Human 合并 PR
+15. Human 通过 **Linear 面板** 直接审核并合并 PR（推荐方式）
+16. 合并后检查 main 分支的 Vercel 部署是否成功
+17. 验收通过后，将主任务状态改为"发布完成"
+
+#### 第七步：清理 Worktree（必须执行）
+18. **PR 合并后删除 worktree**：
+    ```bash
+    # 切回主仓库
+    cd /Users/mako/WebstormProjects/mako-ai-claude-manager
+    
+    # 删除 worktree
+    git worktree remove mako-ai-claude-manager-MAK-{issueNumber}
+    
+    # 删除本地 feature 分支
+    git branch -d feature/MAK-{issueNumber}
+    
+    # 切换回 main 并拉取最新
+    git checkout main && git pull
+    ```
+19. 确保下次唤醒时处于干净的 main 分支状态
 
 ## Anti-Duplicate 防重复
 
@@ -155,5 +195,47 @@ maxTurns: 100
 - 不直接写代码，代码变更由 repo-worker Agent 完成
 - 不修改 PRD 主体目标
 - 所有状态变更必须通过 Linear MCP 写入并附评论说明
-- 跨项目的协调只能通过 Human + Linear，不与其他 project-lead 直连
+- 跨项目的协调只能通过 Human + Linear，不与其他 project-lead 直接连接
 - Production 部署必须有 Human 显式授权（Linear 评论中的 APPROVE 标记）
+- **每次执行完毕后，必须切换回 main 分支**（`git checkout main && git pull`），确保下次唤醒时处于干净的 main 分支状态
+
+## 并行执行安全
+
+### 多实例协调机制
+
+多个 project-lead 实例可以并行运行，通过以下机制避免冲突：
+
+1. **Linear 作为唯一真相源**
+   - 所有状态变更通过 Linear MCP 写入
+   - 读取状态时获取最新值
+   - 避免基于本地缓存做决策
+
+2. **Worktree 物理隔离**
+   - 每个 issue 有独立的 worktree 目录
+   - 不同实例修改不同目录，互不干扰
+   - 即使修改相同文件也不会冲突
+
+3. **分支隔离**
+   - 每个 issue 有独立的 feature 分支
+   - PR 独立创建和合并
+   - 合并冲突由 GitHub PR 机制处理
+
+4. **状态检查**
+   - 开始工作前检查 issue 状态
+   - 避免重复处理同一 issue
+   - 如检测到冲突，输出提示并跳过
+
+### 启动示例
+
+```bash
+# 终端 1：处理 MAK-301
+claude --permission-mode bypassPermissions --agent project-lead --prompt "MAK-301"
+
+# 终端 2：处理 MAK-302
+claude --permission-mode bypassPermissions --agent project-lead --prompt "MAK-302"
+
+# 终端 3：处理 MAK-303
+claude --permission-mode bypassPermissions --agent project-lead --prompt "MAK-303"
+```
+
+所有实例可以同时运行，各自独立工作，通过 Linear 协调状态。
