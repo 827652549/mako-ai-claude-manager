@@ -17,6 +17,6 @@
     "lib": ["ES2022"],
     "types": ["node"]
   },
-  "include": ["api/**/*.ts", "lib/**/*.ts", "daemon.ts"],
+  "include": ["api/**/*.ts", "daemon.ts"],
   "exclude": ["node_modules", "dist", ".vercel"]
 }

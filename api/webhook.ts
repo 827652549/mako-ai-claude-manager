@@ -1,20 +1,100 @@
 /**
  * Linear Webhook endpoint (Vercel Function).
  *
- * Thin relay: validates → routes → writes PENDING marker to Linear.
- * Agent execution is handled by the local daemon (daemon.ts).
+ * Self-contained: all logic inlined (no external imports).
+ * Validates → routes → writes PENDING marker to Linear.
  *
  * POST /api/webhook - receive Linear events
  * GET  /api/webhook - health check
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { verifySignature } from "../lib/verify-signature";
-import parseCommand from "../lib/command-router";
+import { createHmac } from "node:crypto";
 import { LinearClient } from "@linear/sdk";
 
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/*  HMAC Signature Verification                                        */
+/* ================================================================== */
+
+function timingSafeEqual(a: Buffer, b: Buffer): boolean {
+  try {
+    const { timingSafeEqual: fn } = require("node:crypto");
+    return fn(a, b);
+  } catch {
+    let result = 0;
+    for (let i = 0; i < a.length; i++) {
+      result |= a[i]! ^ b[i]!;
+    }
+    return result === 0;
+  }
+}
+
+function verifySignature(
+  body: string,
+  signature: string | null,
+  secret: string,
+): boolean {
+  if (signature === null || signature === undefined) return false;
+  if (body.length === 0) return false;
+  if (secret.length === 0) return false;
+
+  const expected = createHmac("sha256", secret).update(body).digest("hex");
+  if (expected.length !== signature.length) return false;
+
+  return timingSafeEqual(
+    Buffer.from(expected, "utf8"),
+    Buffer.from(signature, "utf8"),
+  );
+}
+
+/* ================================================================== */
+/*  Command Router                                                     */
+/* ================================================================== */
+
+interface CommentPayload {
+  action: string;
+  type: "Comment";
+  data: { body: string; issue: { id: string } };
+}
+
+interface IssuePayload {
+  action: string;
+  type: "Issue";
+  data: { id: string; state: { name: string } };
+}
+
+type WebhookPayload = CommentPayload | IssuePayload;
+type Action = "research" | "advance" | "release" | "ignore";
+
+interface CommandResult {
+  action: Action;
+  issueId: string;
+}
+
+function parseCommand(payload: WebhookPayload): CommandResult {
+  if (payload.type === "Comment") {
+    const issueId = payload.data.issue.id;
+    const body = payload.data.body.trim();
+
+    if (body === "继续") return { action: "advance", issueId };
+    if (body.includes("发布") || body.toUpperCase().includes("APPROVE"))
+      return { action: "release", issueId };
+
+    return { action: "ignore", issueId };
+  }
+
+  if (payload.type === "Issue") {
+    const issueId = payload.data.id;
+    if (payload.action === "create" && payload.data.state.name === "调研中")
+      return { action: "research", issueId };
+    return { action: "ignore", issueId };
+  }
+
+  return { action: "ignore", issueId: "" };
+}
+
+/* ================================================================== */
 /*  In-memory deduplication                                            */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
 
 const processedEvents = new Map<string, number>();
 const DEDUP_TTL_MS = 5 * 60 * 1000;
@@ -22,15 +102,13 @@ const DEDUP_TTL_MS = 5 * 60 * 1000;
 function cleanupExpiredEvents(): void {
   const now = Date.now();
   for (const [id, ts] of processedEvents) {
-    if (now - ts > DEDUP_TTL_MS) {
-      processedEvents.delete(id);
-    }
+    if (now - ts > DEDUP_TTL_MS) processedEvents.delete(id);
   }
 }
 
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
 /*  Helpers                                                            */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -46,26 +124,15 @@ function getEventId(
   payload: Record<string, unknown>,
 ): string | null {
   const headerValue = req.headers["linear-event"];
-  if (headerValue) {
-    return Array.isArray(headerValue) ? headerValue[0]! : headerValue;
-  }
+  if (headerValue) return Array.isArray(headerValue) ? headerValue[0]! : headerValue;
   const deliveryId = payload.webhookDeliveryId;
-  if (typeof deliveryId === "string" && deliveryId.length > 0) {
-    return deliveryId;
-  }
+  if (typeof deliveryId === "string" && deliveryId.length > 0) return deliveryId;
   return null;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Constants                                                          */
-/* ------------------------------------------------------------------ */
-
-const SUPPORTED_TYPES = new Set(["Issue", "Comment"]);
-const SUPPORTED_ACTIONS = new Set(["create", "update"]);
-
-/* ------------------------------------------------------------------ */
-/*  PENDING marker                                                     */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/*  Issue context & PENDING marker                                     */
+/* ================================================================== */
 
 interface IssueContext {
   id: string;
@@ -74,8 +141,22 @@ interface IssueContext {
   status: string;
 }
 
+async function fetchIssueContext(
+  client: LinearClient,
+  issueId: string,
+): Promise<IssueContext> {
+  const issue = await client.issue(issueId);
+  const state = await issue.state;
+  return {
+    id: issueId,
+    title: issue.title,
+    description: issue.description ?? "",
+    status: state?.name ?? "Unknown",
+  };
+}
+
 async function writePendingMarker(
-  linearClient: LinearClient,
+  client: LinearClient,
   action: string,
   issueId: string,
   context: IssueContext,
@@ -91,50 +172,34 @@ async function writePendingMarker(
     "```",
   ].join("\n");
 
-  await linearClient.createComment({
-    issueId,
-    body,
-  });
+  await client.createComment({ issueId, body });
 }
 
-/* ------------------------------------------------------------------ */
-/*  Issue context fetcher                                              */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/*  Structured logging                                                 */
+/* ================================================================== */
 
-async function fetchIssueContext(
-  linearClient: LinearClient,
-  issueId: string,
-): Promise<IssueContext> {
-  const issue = await linearClient.issue(issueId);
-  const state = await issue.state;
-  return {
-    id: issueId,
-    title: issue.title,
-    description: issue.description ?? "",
-    status: state?.name ?? "Unknown",
-  };
-}
-
-/* ------------------------------------------------------------------ */
-/*  Structured log helper                                              */
-/* ------------------------------------------------------------------ */
-
-interface StructuredLog {
+function log(info: {
   eventId: string | null;
   action: string;
   duration: number;
   success: boolean;
-}
-
-function logStructured(info: StructuredLog): void {
+}): void {
   console.log(
     `[webhook] event=${info.eventId ?? "unknown"} action=${info.action} duration=${info.duration}ms success=${info.success}`,
   );
 }
 
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/*  Constants                                                          */
+/* ================================================================== */
+
+const SUPPORTED_TYPES = new Set(["Issue", "Comment"]);
+const SUPPORTED_ACTIONS = new Set(["create", "update"]);
+
+/* ================================================================== */
 /*  Handler                                                            */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
 
 export default async function handler(
   req: IncomingMessage,
@@ -157,13 +222,12 @@ export default async function handler(
 
   const startTime = Date.now();
   let eventId: string | null = null;
-  let action = "unknown";
+  let action: Action = "ignore";
 
   try {
-    // 1. Read raw body
     const body = await readBody(req);
 
-    // 2. Verify HMAC signature
+    // 1. Verify signature
     const rawSignature = req.headers["x-webhook-signature"];
     const signature: string | null = Array.isArray(rawSignature)
       ? (rawSignature[0] ?? null)
@@ -183,7 +247,7 @@ export default async function handler(
       return;
     }
 
-    // 3. Parse JSON
+    // 2. Parse JSON
     let payload: Record<string, unknown>;
     try {
       payload = JSON.parse(body) as Record<string, unknown>;
@@ -193,11 +257,10 @@ export default async function handler(
       return;
     }
 
-    // 4. Dedup
+    // 3. Dedup
     eventId = getEventId(req, payload);
     if (eventId) {
       if (processedEvents.has(eventId)) {
-        console.log(`[webhook] Duplicate event ignored: ${eventId}`);
         res.statusCode = 200;
         res.end(JSON.stringify({ status: "ok", duplicate: true }));
         return;
@@ -206,10 +269,9 @@ export default async function handler(
       cleanupExpiredEvents();
     }
 
-    // 5. Filter: only Issue / Comment create / update
+    // 4. Filter events
     const eventType = payload.type;
     const eventAction = payload.action;
-
     if (
       !SUPPORTED_TYPES.has(eventType as string) ||
       !SUPPORTED_ACTIONS.has(eventAction as string)
@@ -219,52 +281,42 @@ export default async function handler(
       return;
     }
 
-    // 6. Route command
+    // 5. Route command
     const commandResult = parseCommand(
-      payload as unknown as Parameters<typeof parseCommand>[0],
+      payload as unknown as WebhookPayload,
     );
     action = commandResult.action;
     const issueId = commandResult.issueId;
 
     console.log(`[webhook] Command: action=${action}, issue=${issueId}`);
 
-    // 7. Skip if action is "ignore"
+    // 6. Skip ignores
     if (action === "ignore") {
       const duration = Date.now() - startTime;
-      logStructured({ eventId, action, duration, success: true });
+      log({ eventId, action, duration, success: true });
       res.statusCode = 200;
       res.end(JSON.stringify({ status: "ok", action: "ignore" }));
       return;
     }
 
-    // 8. Fetch issue context & write PENDING marker
+    // 7. Fetch context & write PENDING marker
     const linearApiKey = process.env.LINEAR_API_KEY;
-    if (!linearApiKey) {
-      throw new Error("LINEAR_API_KEY is not set");
-    }
+    if (!linearApiKey) throw new Error("LINEAR_API_KEY is not set");
+
     const linearClient = new LinearClient({ apiKey: linearApiKey });
     const issueContext = await fetchIssueContext(linearClient, issueId);
-
     await writePendingMarker(linearClient, action, issueId, issueContext);
 
-    // 9. Respond
+    // 8. Respond
     const duration = Date.now() - startTime;
-    logStructured({ eventId, action, duration, success: true });
-
+    log({ eventId, action, duration, success: true });
     res.statusCode = 200;
-    res.end(
-      JSON.stringify({
-        status: "ok",
-        action,
-        queued: true,
-      }),
-    );
+    res.end(JSON.stringify({ status: "ok", action, queued: true }));
   } catch (err) {
     const duration = Date.now() - startTime;
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error(`[webhook] Error: ${errorMessage}`);
-    logStructured({ eventId, action, duration, success: false });
-
+    log({ eventId, action, duration, success: false });
     res.statusCode = 500;
     res.end(JSON.stringify({ error: "Internal server error" }));
   }
