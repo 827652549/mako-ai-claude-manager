@@ -11,6 +11,7 @@ import {
   FileText,
   FileCode,
   Menu,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -26,6 +27,7 @@ const navItems = [
   { label: "Skills", icon: Puzzle, href: "/skills" },
   { label: "Rules", icon: FileText, href: "/rules" },
   { label: "CLAUDE.md", icon: FileCode, href: "/claude-md" },
+  { label: "Changelog", icon: History, href: "/changelog" },
 ];
 
 /** SidebarContent - shared navigation list for desktop and mobile */
