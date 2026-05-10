@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="prompt" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="38" fill="url(#bg)"/>
+  <text x="22" y="128" font-family="'SF Mono','Fira Code','JetBrains Mono',monospace" font-size="96" font-weight="700" fill="url(#prompt)" letter-spacing="-3">&gt;_</text>
+  <rect x="128" y="72" width="12" height="60" rx="6" fill="#22d3ee" opacity="0.8">
+    <animate attributeName="opacity" values="0.8;0;0.8" dur="1.2s" repeatCount="indefinite"/>
+  </rect>
+</svg>

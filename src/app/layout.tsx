@@ -10,6 +10,10 @@ const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 export const metadata: Metadata = {
   title: "Claude Code Manager",
   description: "Manage your Claude Code configuration",
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/apple-icon.svg",
+  },
 };
 
 export default function RootLayout({
