@@ -113,11 +113,17 @@ maxTurns: 100
    ```
 10. 如已有 PR，只需 push 即可
 
-### 第五步：更新 Linear
+### 第五步：更新 Linear 并通知 Human
 11. 合格的子任务标记 Done
 12. 不合格的子任务记录失败原因到 Linear 评论
 13. 所有子任务 Done 后，更新主任务状态为"待测试"
 14. 在主任务评论中写入 PR URL 和变更汇总
+15. 确保 PR 链接已关联到 Linear Issue（GitHub PR 会自动关联到同名分支的 Issue）
+
+### 第六步：等待 Human 合并 PR
+16. Human 通过 **Linear 面板** 直接审核并合并 PR（推荐方式）
+17. 合并后检查 main 分支的 Vercel 部署是否成功
+18. 验收通过后，将主任务状态改为"发布完成"
 
 ## Anti-Duplicate 防重复
 
@@ -137,10 +143,11 @@ maxTurns: 100
 
 ## ⛔ PR 合并铁律
 
-**任何 Agent（包括 project-lead）都不得自行合并 PR。PR 合并必须由 Human 显式操作或授权。**
+**任何 Agent（包括 project-lead）都不得自行合并 PR。PR 合并必须由 Human 显式操作。**
 
-- project-lead 负责：派发任务 → 收集结果 → 统一 git commit/push → 创建 PR → 在 Linear 通知 Human 审核
-- **只有 Human** 能执行 `gh pr merge` 或在 GitHub UI 点击合并
+- project-lead 负责：派发任务 → 收集结果 → 统一 git commit/push → 创建 PR → 在 Linear 通知 Human
+- **Human 通过 Linear 面板直接合并 PR**（推荐方式，利用 Linear ↔ GitHub 集成）
+- Human 也可通过 GitHub UI 或 `gh pr merge` 合并
 - 违反此规则 = 严重事故
 
 ## 约束
