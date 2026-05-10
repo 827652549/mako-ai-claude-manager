@@ -30,7 +30,7 @@
 | **Orchestrator**（原"项目 Agent 组长" + "仓库执行 Agent" 合并） | 外部 TS 进程（1 项目 = 1 进程） | Linear webhook + 主任务状态 | 状态机推进、Task 拆分写入 Linear、headless 进程调度、PR 汇总、Vercel preview 部署、merge lock 管理 | 直接写代码、改 PRD 主体、未经 Human 授权触发 production 部署 |
 | **PRD Agent** | LLM Role (`prd-agent.md`) | Idea + 需求背景 | PRD（§5 模板） | 写技术方案、指定技术栈、调用 Vercel/git |
 | **UX Agent** | LLM Role (`ux-agent.md`) | PRD | 用户体验流程 / 信息架构 | 改 PRD 主体目标 |
-| **UI Agent** | LLM Role (`ui-agent.md`) | UX 流程 | 视觉稿 / 设计 token | 改 UX 流程结构 |
+| **UI Agent** | LLM Role (`ui-agent.md`) | UX 流程 | 可运行的 Next.js/Tailwind/shadcn UI 页面代码（Vercel Preview）+ 设计 token | 改 UX 流程结构 |
 | **仓库架构 Agent** | LLM Role (`repo-architect.md`)，每次启动注入仓库全景 | PRD / 技改诉求 + 仓库 HEAD 快照 + 全局架构文档 | 技术方案、TRD、Task 拆分草案 | 修改 PRD 主体；越权"乱优化"未在 PRD 范围内的模块 |
 | **仓库子执行 Agent** | LLM Role (`repo-worker.md`)，由 Orchestrator 并发 fork | 单个叶子 Task | 单个 Task 的代码变更（PR 上的提交） | 修改 Task 范围以外文件、跨 Task 引用兄弟上下文、置 Done、调用 Vercel/Linear-status MCP |
 | **测试 Agent** | LLM Role (`test-agent.md`) | **Vercel preview URL** + Step1 产物（PRD/TRD + 设计稿 + 验收标准） | 回归报告、Bug 列表 Task | 修复 bug、触发任何部署、修改主任务状态 |
@@ -97,7 +97,7 @@
 
 - **分支 A · 需求**：触发器是用户行为/业务指标问题。例：「用户做不到 X」「转化率低于 Y」。
   - 路径：`PRD Agent → UX Agent → UI Agent → 仓库架构 Agent`
-  - 主产物：**PRD + 设计稿**
+  - 主产物：**PRD + UI 页面代码（Vercel Preview 可视化）**
 - **分支 B · 技改**：触发器是工程指标问题。例：「P95 > 800ms」「构建时间超过 10 分钟」「依赖即将 EOL」。
   - 路径：`仓库架构 Agent`（直接出 TRD，不经 PRD/UX/UI）
   - 主产物：**TRD**
@@ -142,7 +142,7 @@ PRD 与 TRD **必须**包含以下 4 段，且每段都用对应的"语言风格
 
 **执行**（Orchestrator 状态机分支）：
 1. **判定分支**（§4）：纯脚本判断（基于卡片标签 / 描述里的结构化字段），判定不清 → 状态回退 + @Human。
-2. **分支 A · 需求**：依次串行调用 `prd-agent` → `ux-agent` → `ui-agent`，每个角色产物以一条独立 Linear 评论落地（附设计稿/文档链接）。
+2. **分支 A · 需求**：依次串行调用 `prd-agent` → `ux-agent` → `ui-agent`，每个角色产物以一条独立 Linear 评论落地（UI Agent 产出页面代码并部署 Vercel Preview，Preview URL 写入评论）。
 3. **分支 B · 技改**：调用 `repo-architect`（带 `intent=trd` 入参），直接产 TRD → Linear 评论。
 4. **统一收口**：再次调用 `repo-architect`（带 `intent=task-breakdown` 入参 + 上阶段产物），产出"技术方案 + Task 拆分草案"（结构化 JSON 输出，便于脚本解析）。
 5. Orchestrator 解析 Task 拆分 JSON → 用 Linear MCP 在主任务下批量创建子任务，写入 `step` 字段、`blocked_by` 链接，主任务状态置 `待开发`。
