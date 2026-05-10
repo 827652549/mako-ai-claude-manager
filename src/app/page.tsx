@@ -1,7 +1,181 @@
-export default function Home() {
+import Link from "next/link";
+import {
+  Settings,
+  Bot,
+  Puzzle,
+  FileText,
+  FileCode,
+  FolderTree,
+} from "lucide-react";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import {
+  readClaudeSettings,
+  readAgents,
+  readSkills,
+  readProjectRules,
+  readClaudeMd,
+  getDirectoryTree,
+  type DirectoryNode,
+} from "@/lib/claude-config";
+
+/** Recursively count all nodes in a directory tree */
+function countNodes(nodes: DirectoryNode[]): number {
+  let count = 0;
+  for (const node of nodes) {
+    count++;
+    if (node.children) {
+      count += countNodes(node.children);
+    }
+  }
+  return count;
+}
+
+/** Module card definition */
+interface ModuleCard {
+  title: string;
+  icon: React.ElementType;
+  description: string;
+  href: string;
+  count: number | null;
+  isError: boolean;
+}
+
+export default async function DashboardPage() {
+  // Fetch all data in parallel, catching errors individually
+  const [
+    settingsResult,
+    agentsResult,
+    skillsResult,
+    rulesResult,
+    claudeMdResult,
+    directoryResult,
+  ] = await Promise.allSettled([
+    readClaudeSettings(),
+    readAgents(),
+    readSkills(),
+    readProjectRules(),
+    readClaudeMd(),
+    getDirectoryTree(),
+  ]);
+
+  // Extract values or mark as error
+  const settings =
+    settingsResult.status === "fulfilled" ? settingsResult.value : null;
+  const agents =
+    agentsResult.status === "fulfilled" ? agentsResult.value : null;
+  const skills =
+    skillsResult.status === "fulfilled" ? skillsResult.value : null;
+  const rules =
+    rulesResult.status === "fulfilled" ? rulesResult.value : null;
+  const claudeMd =
+    claudeMdResult.status === "fulfilled" ? claudeMdResult.value : null;
+  const directoryTree =
+    directoryResult.status === "fulfilled" ? directoryResult.value : null;
+
+  const modules: ModuleCard[] = [
+    {
+      title: "Settings",
+      icon: Settings,
+      description: "Global settings, permissions, plugins",
+      href: "/settings",
+      count: settings ? Object.keys(settings).length : null,
+      isError: settings === null,
+    },
+    {
+      title: "Agents",
+      icon: Bot,
+      description: "Agent definitions and configurations",
+      href: "/agents",
+      count: agents ? agents.length : null,
+      isError: agents === null,
+    },
+    {
+      title: "Skills",
+      icon: Puzzle,
+      description: "Available skills and workflows",
+      href: "/skills",
+      count: skills ? skills.length : null,
+      isError: skills === null,
+    },
+    {
+      title: "Rules",
+      icon: FileText,
+      description: "Project coding rules and guidelines",
+      href: "/rules",
+      count: rules ? rules.length : null,
+      isError: rules === null,
+    },
+    {
+      title: "CLAUDE.md",
+      icon: FileCode,
+      description: "Global memory and instructions",
+      href: "/claude-md",
+      count: claudeMd !== null ? 1 : null,
+      isError: claudeMd === null,
+    },
+    {
+      title: "Directory",
+      icon: FolderTree,
+      description: "Configuration directory structure",
+      href: "/directory",
+      count: directoryTree ? countNodes(directoryTree) : null,
+      isError: directoryTree === null,
+    },
+  ];
+
   return (
-    <main className="flex min-h-screen items-center justify-center">
-      <h1 className="text-2xl font-semibold">Hello Claude Code Manager</h1>
-    </main>
+    <div className="p-6 md:p-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">Claude Code Manager</h1>
+        <p className="mt-1 text-muted-foreground">
+          Manage and visualize your .claude config
+        </p>
+      </div>
+
+      {/* Module Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {modules.map((mod) => {
+          const Icon = mod.icon;
+          return (
+            <Link key={mod.title} href={mod.href} className="group block">
+              <Card
+                className={cn(
+                  "transition-all hover:shadow-lg hover:border-primary/50 cursor-pointer",
+                )}
+              >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    {mod.title}
+                  </CardTitle>
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground line-clamp-2">
+                    {mod.description}
+                  </p>
+                  <div className="mt-2">
+                    {mod.isError ? (
+                      <Badge variant="destructive">Load failed</Badge>
+                    ) : (
+                      <Badge variant="secondary">
+                        {mod.count} {mod.count === 1 ? "item" : "items"}
+                      </Badge>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
   );
 }
