@@ -6,6 +6,10 @@ import {
   FileText,
   FileCode,
   FolderTree,
+  History,
+  Database,
+  FolderKanban,
+  Folder,
 } from "lucide-react";
 import {
   Card,
@@ -14,7 +18,13 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import {
+  DIRECTORY_CATEGORIES,
+  DIRECTORY_METADATA,
+  getCategoryStats,
+} from "@/constants/directory-metadata";
 import {
   readClaudeSettings,
   readAgents,
@@ -27,6 +37,15 @@ import {
 
 /** Force SSR — real-time reads from ~/.claude/, never prerendered */
 export const dynamic = "force-dynamic";
+
+/** Icon mapping for directory categories */
+const CATEGORY_ICONS: Record<string, React.ElementType> = {
+  Settings,
+  History,
+  Database,
+  FolderKanban,
+  Puzzle,
+};
 
 /** Detect remote deployment (no local ~/.claude/) */
 const IS_REMOTE = process.env.VERCEL === "1";
@@ -135,6 +154,11 @@ export default async function DashboardPage() {
     return <LandingPage />;
   }
 
+  const existingNames = new Set(
+    (directoryTree ?? []).map((node) => node.name),
+  );
+  const categoryStats = getCategoryStats(existingNames);
+
   const modules: ModuleCard[] = [
     {
       title: "Settings",
@@ -232,6 +256,46 @@ export default async function DashboardPage() {
           );
         })}
       </div>
+
+      {/* Directory Overview Summary */}
+      {directoryTree && (
+        <>
+          <Separator className="my-8" />
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">目录全景</h2>
+              <Link
+                href="/directory-overview"
+                className="text-sm text-primary hover:underline"
+              >
+                查看全部 →
+              </Link>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              ~/.claude/ 下 {DIRECTORY_METADATA.length} 个目录/文件的分类概览
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {DIRECTORY_CATEGORIES.map((cat) => {
+                const count = categoryStats.get(cat.id) ?? 0;
+                const Icon = CATEGORY_ICONS[cat.icon] ?? Folder;
+                return (
+                  <Card
+                    key={cat.id}
+                    className="transition-all hover:shadow-md hover:border-primary/30"
+                  >
+                    <CardContent className="p-4 text-center">
+                      <Icon className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm font-medium">{cat.label}</p>
+                      <p className="text-2xl font-bold tabular-nums">{count}</p>
+                      <p className="text-xs text-muted-foreground">项</p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
