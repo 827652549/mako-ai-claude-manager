@@ -40,7 +40,7 @@ body {
 .sidebar {
   width: 240px; background: var(--card); border-right: 1px solid var(--border);
   padding: 16px 12px; display: flex; flex-direction: column; gap: 2px;
-  flex-shrink: 0; box-shadow: 1px 0 8px rgba(0,0,0,0.04);
+  flex-shrink: 0; box-shadow: 2px 0 12px rgba(0,0,0,0.08);
 }
 .sidebar-section { font-size: 11px; font-weight: 500; color: var(--muted-foreground); padding: 8px 10px 4px; letter-spacing: 0.05em; text-transform: uppercase; }
 .nav-item {
@@ -65,7 +65,7 @@ body {
 /* ── Header ── */
 .header {
   height: 64px; background: var(--card); border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   display: flex; align-items: center; padding: 0 24px; gap: 16px;
 }
 .logo { font-size: 18px; font-weight: 700; color: var(--foreground); white-space: nowrap; }
@@ -93,9 +93,9 @@ body {
   border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
   transition: all 0.15s; white-space: nowrap;
 }
-.btn-primary { background: var(--primary); color: var(--primary-foreground); box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
-.btn-primary:hover { background: #1d4ed8; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-.btn-secondary { background: var(--card); color: var(--foreground); border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+.btn-primary { background: var(--primary); color: var(--primary-foreground); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+.btn-primary:hover { background: #1d4ed8; box-shadow: 0 4px 8px rgba(0,0,0,0.25); }
+.btn-secondary { background: var(--card); color: var(--foreground); border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .btn-secondary:hover { background: var(--accent); }
 
 /* ── Stats Grid ── */
@@ -103,9 +103,9 @@ body {
 .stat-card {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 24px; transition: box-shadow 0.15s, border-color 0.15s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06);
 }
-.stat-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04); border-color: #d4d4d8; }
+.stat-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.06); border-color: #d4d4d8; }
 .stat-value { font-size: 32px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
 .stat-label { font-size: 13px; color: var(--muted-foreground); margin-top: 8px; }
 .stat-change { font-size: 12px; margin-top: 12px; display: flex; align-items: center; gap: 4px; }
@@ -113,7 +113,7 @@ body {
 .stat-change.down { color: #dc2626; }
 
 /* ── Table ── */
-.table-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04); }
+.table-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06); }
 .table-header { padding: 16px 24px; border-bottom: 1px solid var(--border); }
 .table-title { font-size: 16px; font-weight: 600; }
 .table-desc { font-size: 13px; color: var(--muted-foreground); margin-top: 2px; }
@@ -141,11 +141,11 @@ tr:hover td { background: rgba(0,0,0,0.02); }
   .badge-success { background: #14532d; color: #86efac; }
   .badge-warning { background: #713f12; color: #fde047; }
   .badge-destructive { background: #7f1d1d; color: #fca5a5; }
-  .sidebar { box-shadow: 1px 0 12px rgba(0,0,0,0.3); }
-  .header { box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
-  .stat-card { box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
-  .stat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
-  .table-card { box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+  .sidebar { box-shadow: 2px 0 16px rgba(0,0,0,0.5); }
+  .header { box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+  .stat-card { box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+  .stat-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+  .table-card { box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
 }
 
 /* ── Activity Row ── */
