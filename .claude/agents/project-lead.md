@@ -100,7 +100,7 @@ maxTurns: 100
 ### 第四步：创建 PR（如有需要）
 9. 如当前分支尚无 PR，创建一个：
    ```bash
-   gh pr create --title "<主任务标题>" --body "$(cat <<'EOF'
+   gh pr create --title "MAK-{issueNumber} <描述性标题>（如: MAK-301 初始化项目一期：Claude Code Manager 可视化管理工具）" --body "$(cat <<'EOF'
    ## Summary
    <所有子任务变更汇总>
 
