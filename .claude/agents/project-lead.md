@@ -32,9 +32,32 @@ maxTurns: 100
 claude --permission-mode bypassPermissions --agent project-lead "MAK-301"
 ```
 
+issue 标识符格式为 `{PREFIX}-{NUMBER}`，PREFIX 由 Linear team 决定（如 MAK、API、WEB 等）。
+
+### 第零步：解析运行环境（所有后续操作的前提）
+
+唤醒后第一件事，执行以下命令获取环境变量，后续所有步骤均使用这些变量：
+
+```bash
+# 仓库信息
+REPO_ROOT=$(git rev-parse --show-toplevel)
+REPO_NAME=$(basename "$REPO_ROOT")
+
+# GitHub 仓库（owner/repo），同时支持 HTTPS 和 SSH remote 格式
+GITHUB_REMOTE=$(git remote get-url origin)
+GITHUB_REPO=$(echo "$GITHUB_REMOTE" | sed -E 's#.*github\.com[:/](.+?)(\.git)?$#\1#')
+
+# Issue 标识符（从 prompt 参数提取，格式 {PREFIX}-{NUMBER}）
+ISSUE_ID="<从 prompt 中提取，如 MAK-301>"
+
+# Worktree 路径（创建在主仓库目录下）
+WORKTREE_NAME="${REPO_NAME}-${ISSUE_ID}"
+WORKTREE_PATH="${REPO_ROOT}/${WORKTREE_NAME}"
+```
+
 ### 执行流程
 
-1. **解析 issue 标识符**：从 prompt 中提取 `MAK-{issueNumber}`
+1. **解析 issue 标识符**：从 prompt 中提取 `{PREFIX}-{NUMBER}` 格式的标识符，赋值为 `$ISSUE_ID`
 2. **读取主任务**：用 `mcp__linear__get_issue` 读取指定 issue
 3. **读取评论**：`mcp__linear__list_comments`，了解已有产物
 4. **读取子任务**：`children`，了解执行进度
@@ -44,7 +67,7 @@ claude --permission-mode bypassPermissions --agent project-lead "MAK-301"
 
 开始工作前，检查是否有其他实例正在处理同一 issue：
 - 用 `mcp__linear__get_issue` 读取 issue 状态
-- 如状态为"开发中"且已有 worktree 存在（`ls mako-ai-claude-manager-MAK-{issueNumber}`），则跳过或等待
+- 如状态为"开发中"且已有 worktree 存在（`ls "$WORKTREE_PATH"`），则跳过或等待
 - 如状态为"待开发"，则正常开始
 
 
@@ -91,12 +114,12 @@ claude --permission-mode bypassPermissions --agent project-lead "MAK-301"
 2. 过滤出未完成的子任务（状态不是 Done）
 3. 创建 worktree：
    ```bash
-   git worktree add mako-ai-claude-manager-MAK-{issueNumber} -b feature/MAK-{issueNumber} main
+   git worktree add "$WORKTREE_NAME" -b "feature/$ISSUE_ID" main
    ```
 4. 按 `step` 字段分组，同 step 内并发，跨 step 串行
 5. 对每个子任务，调用 Agent（在 worktree 目录中执行）：
    ```
-   Agent("repo-worker", prompt="执行以下 Task:\n\n标题: {title}\n描述: {description}\n验收标准: {acceptance}\n\nPRD/TRD 上下文:\n{prd_summary}\n\n工作目录: mako-ai-claude-manager-MAK-{issueNumber}")
+   Agent("repo-worker", prompt="执行以下 Task:\n\n标题: {title}\n描述: {description}\n验收标准: {acceptance}\n\nPRD/TRD 上下文:\n{prd_summary}\n\n工作目录: $WORKTREE_PATH")
    ```
 
 #### 第二步：收集结果
@@ -106,31 +129,33 @@ claude --permission-mode bypassPermissions --agent project-lead "MAK-301"
 #### 第三步：统一 git 操作（在 worktree 目录中）
 8. **由 project-lead 统一执行** git 操作（repo-worker 不做任何 git 操作）：
    ```bash
-   cd mako-ai-claude-manager-MAK-{issueNumber}
-   
+   cd "$WORKTREE_PATH"
+
    # 将所有变更文件加入暂存区
    git add <所有变更文件列表>
-   
+
    # 统一提交，commit message 按子任务汇总
-   git commit -m "feat: <主任务标题>\n\n- 子任务1: 变更摘要
+   git commit -m "feat: <主任务标题>
+
+   - 子任务1: 变更摘要
    - 子任务2: 变更摘要
    ..."
-   
+
    # 推送到远程 feature 分支
-   git push -u origin feature/MAK-{issueNumber}
+   git push -u origin "feature/$ISSUE_ID"
    ```
 
 #### 第四步：创建 PR
 9. 创建 PR：
    ```bash
-   cd mako-ai-claude-manager-MAK-{issueNumber}
-   gh pr create --title "MAK-{issueNumber} <描述性标题>" --body "$(cat <<'EOF'
+   cd "$WORKTREE_PATH"
+   gh pr create --title "$ISSUE_ID <描述性标题>" --body "$(cat <<'EOF'
    ## Summary
    <所有子任务变更汇总>
-   
+
    ## Changes
    <完整修改文件列表>
-   
+
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
    EOF
    )"
@@ -147,11 +172,11 @@ claude --permission-mode bypassPermissions --agent project-lead "MAK-301"
 15. Human 通过 **Linear 面板** 直接审核并合并 PR（推荐方式）
 16. 合并后通过 GitHub API 获取 Production 部署状态和 URL：
     ```bash
-    # 获取最新 Production 部署
-    gh api 'repos/{owner}/{repo}/deployments?per_page=3' --jq '.[] | select(.environment=="Production") | {id, ref, created_at}' | head -5
+    # 获取最新 Production 部署（$GITHUB_REPO 已在第零步解析）
+    gh api "repos/$GITHUB_REPO/deployments?per_page=3" --jq '.[] | select(.environment=="Production") | {id, ref, created_at}' | head -5
 
     # 获取部署状态和 URL
-    gh api repos/{owner}/{repo}/deployments/{id}/statuses --jq '.[0] | {state, target_url}'
+    gh api "repos/$GITHUB_REPO/deployments/{id}/statuses" --jq '.[0] | {state, target_url}'
     ```
 17. 验收通过后，将主任务状态改为"发布完成"
 18. **更新标题追加完成时间**：获取北京时间并追加到标题末尾
@@ -166,14 +191,14 @@ claude --permission-mode bypassPermissions --agent project-lead "MAK-301"
 20. **PR 合并后删除 worktree**：
     ```bash
     # 切回主仓库
-    cd /Users/mako/WebstormProjects/mako-ai-claude-manager
-    
+    cd "$REPO_ROOT"
+
     # 删除 worktree
-    git worktree remove mako-ai-claude-manager-MAK-{issueNumber}
-    
+    git worktree remove "$WORKTREE_NAME"
+
     # 删除本地 feature 分支
-    git branch -d feature/MAK-{issueNumber}
-    
+    git branch -d "feature/$ISSUE_ID"
+
     # 切换回 main 并拉取最新
     git checkout main && git pull
     ```
@@ -212,7 +237,7 @@ claude --permission-mode bypassPermissions --agent project-lead "MAK-301"
 - 跨项目的协调只能通过 Human + Linear，不与其他 project-lead 直接连接
 - Production 部署必须有 Human 显式授权（Linear 评论中的 APPROVE 标记）
 - **每次执行完毕后，必须切换回 main 分支**（`git checkout main && git pull`），确保下次唤醒时处于干净的 main 分支状态
-- **发布完成时必须更新标题**：将主任务状态改为"发布完成"时，同步在标题末尾追加完成时间，格式为 `[YYYY-MM-DD-HH-mm]`（北京时间）。使用 `date "+%Y-%m-%d-%H-%M" -d "+8 hours"` 或 `TZ=Asia/Shanghai date "+%Y-%m-%d-%H-%M"` 获取北京时间。
+- **发布完成时必须更新标题**：将主任务状态改为"发布完成"时，同步在标题末尾追加完成时间，格式为 `[YYYY-MM-DD-HH-mm]`（北京时间）。使用 `TZ=Asia/Shanghai date "+%Y-%m-%d-%H-%M"` 获取北京时间。
 
 ## 并行执行安全
 
@@ -226,12 +251,12 @@ claude --permission-mode bypassPermissions --agent project-lead "MAK-301"
    - 避免基于本地缓存做决策
 
 2. **Worktree 物理隔离**
-   - 每个 issue 有独立的 worktree 目录
+   - 每个 issue 有独立的 worktree 目录（`$WORKTREE_PATH`）
    - 不同实例修改不同目录，互不干扰
    - 即使修改相同文件也不会冲突
 
 3. **分支隔离**
-   - 每个 issue 有独立的 feature 分支
+   - 每个 issue 有独立的 feature 分支（`feature/$ISSUE_ID`）
    - PR 独立创建和合并
    - 合并冲突由 GitHub PR 机制处理
 
@@ -243,14 +268,20 @@ claude --permission-mode bypassPermissions --agent project-lead "MAK-301"
 ### 启动示例
 
 ```bash
-# 终端 1：处理 MAK-301
+# 不同项目、不同 issue 前缀，均使用相同命令格式
+# 在对应项目目录下执行，$REPO_ROOT / $GITHUB_REPO 自动从 git 解析
+
+# 终端 1：项目 A，处理 MAK-301
+cd /path/to/project-a
 claude --permission-mode bypassPermissions --agent project-lead "MAK-301"
 
-# 终端 2：处理 MAK-302
-claude --permission-mode bypassPermissions --agent project-lead "MAK-302"
+# 终端 2：项目 B，处理 API-42
+cd /path/to/project-b
+claude --permission-mode bypassPermissions --agent project-lead "API-42"
 
-# 终端 3：处理 MAK-303
-claude --permission-mode bypassPermissions --agent project-lead "MAK-303"
+# 终端 3：项目 A，并发处理另一个需求
+cd /path/to/project-a
+claude --permission-mode bypassPermissions --agent project-lead "MAK-302"
 ```
 
 所有实例可以同时运行，各自独立工作，通过 Linear 协调状态。
