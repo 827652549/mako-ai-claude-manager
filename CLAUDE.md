@@ -27,17 +27,14 @@
 
 | 任务类型 | 读取文件 |
 |---|---|
-| 架构调整 / 重构 / 新增目录 | `.claude/rules/architecture.md` |
-| 查找术语或项目概念 | `.claude/rules/glossary.md` |
-| 遇到疑难问题 | `.claude/rules/faq.md` |
-| 了解项目技术栈和目录结构 | `.claude/rules/project-overview.md` |
+| 了解项目目录结构 | `.claude/rules/project-overview.md` |
 
 ---
 
 ## 规范文件目录
 
 ```
-mako-rules-base/rules/      # 共享规范（通过 @import 加载，勿在此重复维护）
+mako-rules-base/rules/      # 共享规范（@import 加载，实时生效，勿在此重复维护）
 ├── ai-interaction.md
 ├── coding-style.md
 ├── lint-requirements.md
@@ -45,11 +42,12 @@ mako-rules-base/rules/      # 共享规范（通过 @import 加载，勿在此�
 ├── ui-style-standards.md
 ├── api-standards.md
 ├── testing-standards.md
-└── code-examples.md
-
-.claude/rules/              # 本项目特有规范
-├── project-overview.md     # 技术栈、项目结构总览
-├── architecture.md         # 项目架构与数据流
+├── code-examples.md
+├── nextjs-stack.md         # Next.js 技术栈约定
+├── nextjs-architecture.md  # 三层架构 + 目录约定
 ├── glossary.md             # 术语表
 └── faq.md                  # 常见问题
+
+.claude/rules/              # 本项目特有规范
+└── project-overview.md     # manager 特有目录结构
 ```
