@@ -25,10 +25,18 @@ allowed-tools:
 
 ## 流程
 
+### 0. 解析运行环境
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+GITHUB_REMOTE=$(git remote get-url origin)
+GITHUB_REPO=$(echo "$GITHUB_REMOTE" | sed -E 's#.*github\.com[:/](.+?)(\.git)?$#\1#')
+```
+
 ### 1. 本地构建验证
 
 ```bash
-cd {project_root} && bun run build
+cd "$REPO_ROOT" && bun run build
 ```
 
 - 检查构建是否成功
@@ -40,14 +48,14 @@ cd {project_root} && bun run build
 通过 GitHub API 获取 Preview 和 Production 部署状态：
 
 ```bash
-# 获取最近的部署（Preview + Production）
-gh api 'repos/{owner}/{repo}/deployments?per_page=5' --jq '.[] | {id, environment, ref, created_at}'
+# 获取最近的部署（Preview + Production）（$GITHUB_REPO 已在第 0 步解析）
+gh api "repos/$GITHUB_REPO/deployments?per_page=5" --jq '.[] | {id, environment, ref, created_at}'
 
 # 获取 Preview 部署状态和 URL
-gh api repos/{owner}/{repo}/deployments/{preview_id}/statuses --jq '.[0] | {state, target_url}'
+gh api "repos/$GITHUB_REPO/deployments/{preview_id}/statuses" --jq '.[0] | {state, target_url}'
 
 # 获取 Production 部署状态和 URL（如已部署）
-gh api repos/{owner}/{repo}/deployments/{prod_id}/statuses --jq '.[0] | {state, target_url}'
+gh api "repos/$GITHUB_REPO/deployments/{prod_id}/statuses" --jq '.[0] | {state, target_url}'
 ```
 
 - Preview 部署成功 → 记录 Preview URL（**必须写入最终报告**）
